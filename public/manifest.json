@@ -1,0 +1,15 @@
+{
+  "name": "Tranquil — PMR & Breathing Relaxation",
+  "short_name": "Tranquil",
+  "description": "Find calm through guided Progressive Muscle Relaxation, breathing exercises, and meditation.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8faf9",
+  "theme_color": "#7fa99b",
+  "orientation": "portrait-primary",
+  "icons": [],
+  "categories": ["health", "wellness", "lifestyle"],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
+

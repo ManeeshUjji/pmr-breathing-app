@@ -1,26 +1,227 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Calming color palette - soft sage and lavender tones */
+  --color-bg-primary: #f8faf9;
+  --color-bg-secondary: #eef4f2;
+  --color-bg-tertiary: #e4ede9;
+  
+  --color-text-primary: #2d3a36;
+  --color-text-secondary: #5a6b65;
+  --color-text-muted: #8a9a94;
+  
+  --color-accent: #7fa99b;
+  --color-accent-hover: #6b9587;
+  --color-accent-light: #c8ddd6;
+  
+  --color-lavender: #a8a4ce;
+  --color-lavender-light: #d4d2e8;
+  
+  --color-success: #7fb59c;
+  --color-warning: #d4a574;
+  --color-error: #c98a8a;
+  
+  --color-overlay: rgba(45, 58, 54, 0.4);
+  
+  /* Animation timing */
+  --transition-slow: 0.6s ease-in-out;
+  --transition-medium: 0.3s ease-in-out;
+  --transition-fast: 0.15s ease-in-out;
+  
+  /* Breathing animation scale */
+  --breath-scale: 1.4;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-bg-primary: #1a1f1d;
+    --color-bg-secondary: #242a28;
+    --color-bg-tertiary: #2e3633;
+    
+    --color-text-primary: #e8ece9;
+    --color-text-secondary: #b4c4bc;
+    --color-text-muted: #7a8a84;
+    
+    --color-accent: #8fb5a7;
+    --color-accent-hover: #a3c5b9;
+    --color-accent-light: #3d524a;
+    
+    --color-lavender: #9a96c4;
+    --color-lavender-light: #4a4870;
+    
+    --color-overlay: rgba(0, 0, 0, 0.6);
   }
 }
 
+@theme inline {
+  --color-bg-primary: var(--color-bg-primary);
+  --color-bg-secondary: var(--color-bg-secondary);
+  --color-bg-tertiary: var(--color-bg-tertiary);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-light: var(--color-accent-light);
+  --color-lavender: var(--color-lavender);
+  --color-lavender-light: var(--color-lavender-light);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-accent-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: var(--color-accent-light);
+  color: var(--color-text-primary);
+}
+
+/* Breathing animation keyframes */
+@keyframes breathe-in {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(var(--breath-scale));
+    opacity: 1;
+  }
+}
+
+@keyframes breathe-out {
+  0% {
+    transform: scale(var(--breath-scale));
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+}
+
+@keyframes pulse-gentle {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Utility classes */
+.animate-breathe-in {
+  animation: breathe-in var(--transition-slow) ease-in-out forwards;
+}
+
+.animate-breathe-out {
+  animation: breathe-out var(--transition-slow) ease-in-out forwards;
+}
+
+.animate-pulse-gentle {
+  animation: pulse-gentle 4s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
+/* Gradient backgrounds */
+.bg-gradient-calm {
+  background: linear-gradient(
+    135deg,
+    var(--color-bg-primary) 0%,
+    var(--color-bg-secondary) 50%,
+    var(--color-accent-light) 100%
+  );
+}
+
+.bg-gradient-radial {
+  background: radial-gradient(
+    ellipse at center,
+    var(--color-accent-light) 0%,
+    var(--color-bg-primary) 70%
+  );
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
 }
