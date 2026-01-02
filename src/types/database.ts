@@ -91,45 +91,45 @@ export interface Database {
       exercises: {
         Row: {
           id: string;
-          program_id: string;
+          program_id: string | null;
           title: string;
           description: string;
           type: 'pmr' | 'breathing' | 'meditation';
           duration_seconds: number;
-          day_number: number;
+          day_number: number | null;
           order_index: number;
           content: Json;
-          audio_script: string;
+          audio_script: string | null;
           muscle_groups: string[] | null;
           breathing_pattern: Json | null;
           created_at: string;
         };
         Insert: {
           id?: string;
-          program_id: string;
+          program_id?: string | null;
           title: string;
           description: string;
           type: 'pmr' | 'breathing' | 'meditation';
           duration_seconds: number;
-          day_number: number;
+          day_number?: number | null;
           order_index?: number;
           content: Json;
-          audio_script: string;
+          audio_script?: string | null;
           muscle_groups?: string[] | null;
           breathing_pattern?: Json | null;
           created_at?: string;
         };
         Update: {
           id?: string;
-          program_id?: string;
+          program_id?: string | null;
           title?: string;
           description?: string;
           type?: 'pmr' | 'breathing' | 'meditation';
           duration_seconds?: number;
-          day_number?: number;
+          day_number?: number | null;
           order_index?: number;
           content?: Json;
-          audio_script?: string;
+          audio_script?: string | null;
           muscle_groups?: string[] | null;
           breathing_pattern?: Json | null;
           created_at?: string;
