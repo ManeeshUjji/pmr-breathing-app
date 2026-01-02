@@ -23,6 +23,7 @@ const quickBreathingExercise: Exercise = {
     holdAfterExhale: 4,
     cycles: 8,
   },
+  muscle_groups: null,
   audio_script: null,
   order_index: 0,
   created_at: new Date().toISOString(),

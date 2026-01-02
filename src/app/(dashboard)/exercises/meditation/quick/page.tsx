@@ -60,6 +60,7 @@ const quickMeditationExercise: Exercise = {
     ],
   },
   breathing_pattern: null,
+  muscle_groups: null,
   audio_script: 'Find a comfortable position and close your eyes. Take three deep breaths, letting each exhale release any tension. Notice the sensations in your body right now. Let your breath return to its natural rhythm. Focus on the present moment, letting thoughts come and go like clouds. Notice the stillness within you. Slowly bring your awareness back to the room. When ready, gently open your eyes.',
   order_index: 0,
   created_at: new Date().toISOString(),

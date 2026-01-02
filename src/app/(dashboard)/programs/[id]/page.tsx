@@ -116,10 +116,11 @@ export default function ProgramDetailPage({ params }: { params: Promise<{ id: st
 
   // Group exercises by day
   const exercisesByDay = exercises.reduce((acc, exercise) => {
-    if (!acc[exercise.day_number]) {
-      acc[exercise.day_number] = [];
+    const dayNum = exercise.day_number ?? 0;
+    if (!acc[dayNum]) {
+      acc[dayNum] = [];
     }
-    acc[exercise.day_number].push(exercise);
+    acc[dayNum].push(exercise);
     return acc;
   }, {} as Record<number, Exercise[]>);
 

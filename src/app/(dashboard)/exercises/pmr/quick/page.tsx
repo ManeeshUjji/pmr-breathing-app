@@ -110,6 +110,7 @@ const quickPMRExercise: Exercise = {
     ],
   },
   breathing_pattern: null,
+  muscle_groups: ['neck', 'shoulders'],
   audio_script: null,
   order_index: 0,
   created_at: new Date().toISOString(),

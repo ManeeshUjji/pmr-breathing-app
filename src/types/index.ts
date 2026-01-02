@@ -44,7 +44,7 @@ export interface BreathingPattern {
 export interface MeditationStep {
   instruction: string;
   duration: number;
-  audioScript: string;
+  audioScript: string | null;
 }
 
 // TTS types

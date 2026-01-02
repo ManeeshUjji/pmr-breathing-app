@@ -65,7 +65,9 @@ export function MeditationPlayer({ exercise, onComplete }: MeditationPlayerProps
     // Start timer for current step
     if (stepTimeRemaining === 0) {
       setStepTimeRemaining(currentStep.duration);
-      speakInstruction(currentStep.audioScript);
+      if (currentStep.audioScript) {
+        speakInstruction(currentStep.audioScript);
+      }
     }
 
     timerRef.current = setInterval(() => {
@@ -102,7 +104,9 @@ export function MeditationPlayer({ exercise, onComplete }: MeditationPlayerProps
     } else {
       if (stepTimeRemaining === 0 && currentStep) {
         setStepTimeRemaining(currentStep.duration);
-        speakInstruction(currentStep.audioScript);
+        if (currentStep.audioScript) {
+          speakInstruction(currentStep.audioScript);
+        }
       } else {
         speechService.current?.resume();
       }
