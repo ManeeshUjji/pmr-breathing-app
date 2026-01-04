@@ -233,8 +233,8 @@ export default function OnboardingPage() {
         });
         
         // Sort by score and take top 5
-        scoredExercises.sort((a, b) => b.score - a.score);
-        const recommendedExerciseIds = scoredExercises.slice(0, 5).map(e => e.id);
+        scoredExercises.sort((a: { id: string; score: number }, b: { id: string; score: number }) => b.score - a.score);
+        const recommendedExerciseIds = scoredExercises.slice(0, 5).map((e: { id: string; score: number }) => e.id);
 
         const results: QuizResults = {
           ...quizData,
