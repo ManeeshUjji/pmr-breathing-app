@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui';
 import { Exercise } from '@/types';
 import { cn } from '@/lib/utils/cn';
@@ -41,10 +41,10 @@ const typeColors: Record<string, string> = {
 
 const durationFilters = [
   { value: 'all', label: 'Any duration' },
-  { value: '5', label: '≤5 min' },
-  { value: '10', label: '≤10 min' },
-  { value: '15', label: '≤15 min' },
-  { value: '20', label: '≤20 min' },
+  { value: '5', label: '5 min or less' },
+  { value: '10', label: '10 min or less' },
+  { value: '15', label: '15 min or less' },
+  { value: '20', label: '20 min or less' },
 ];
 
 const targetAreaLabels: Record<string, string> = {
@@ -62,6 +62,9 @@ const targetAreaLabels: Record<string, string> = {
   calm: 'Calm',
 };
 
+// Fetch timeout (10 seconds)
+const FETCH_TIMEOUT = 10000;
+
 export default function LibraryPage() {
   const { user, isLoading: userLoading } = useUser();
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -70,12 +73,63 @@ export default function LibraryPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [durationFilter, setDurationFilter] = useState<string>('all');
   const [targetFilter, setTargetFilter] = useState<string>('all');
-  const supabase = createClient();
+  
+  // Use ref to prevent duplicate fetches
+  const fetchAttempted = useRef(false);
+  
+  // Get singleton client - memoized
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
   // Get unique target areas from exercises
-  const allTargetAreas = [...new Set(exercises.flatMap(e => e.target_areas || []))];
+  const allTargetAreas = useMemo(() => 
+    [...new Set(exercises.flatMap(e => e.target_areas || []))],
+    [exercises]
+  );
+
+  const fetchExercises = useCallback(async () => {
+    if (fetchAttempted.current) {
+      return;
+    }
+    fetchAttempted.current = true;
+
+    try {
+      setError(null);
+      
+      // Add timeout
+      const timeoutId = setTimeout(() => {
+        throw new Error('Request timed out');
+      }, FETCH_TIMEOUT);
+
+      const { data, error: fetchError } = await supabase
+        .from('exercises')
+        .select('*')
+        .order('type', { ascending: true })
+        .order('duration_seconds', { ascending: true });
+
+      clearTimeout(timeoutId);
+
+      if (fetchError) {
+        console.error('Error fetching exercises:', fetchError);
+        setError(`Failed to load exercises: ${fetchError.message}`);
+        setExercises([]);
+        return;
+      }
+
+      console.log('Fetched exercises:', data?.length || 0);
+      setExercises(data || []);
+    } catch (err) {
+      console.error('Error fetching exercises:', err);
+      setError(`Failed to load exercises: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setExercises([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase]);
 
   useEffect(() => {
+    // Reset fetch attempted when user changes
+    fetchAttempted.current = false;
+
     // Wait for user authentication before fetching
     if (userLoading) {
       return;
@@ -87,67 +141,50 @@ export default function LibraryPage() {
       return;
     }
 
-    async function fetchExercises() {
-      try {
-        setError(null);
-        const { data, error: fetchError } = await supabase
-          .from('exercises')
-          .select('*')
-          .order('type', { ascending: true })
-          .order('duration_seconds', { ascending: true });
-
-        if (fetchError) {
-          console.error('Error fetching exercises:', fetchError);
-          setError(`Failed to load exercises: ${fetchError.message}`);
-          setExercises([]);
-          return;
-        }
-
-        console.log('Fetched exercises:', data?.length || 0);
-        setExercises(data || []);
-      } catch (err) {
-        console.error('Error fetching exercises:', err);
-        setError(`Failed to load exercises: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setExercises([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
     fetchExercises();
-  }, [supabase, user, userLoading]);
+  }, [user, userLoading, fetchExercises]);
 
-  const filteredExercises = exercises.filter((exercise) => {
-    // Category filter
-    if (categoryFilter !== 'all' && exercise.type !== categoryFilter) {
-      return false;
-    }
+  // Handle retry
+  const handleRetry = useCallback(() => {
+    fetchAttempted.current = false;
+    setIsLoading(true);
+    setError(null);
+    fetchExercises();
+  }, [fetchExercises]);
 
-    // Duration filter
-    if (durationFilter !== 'all') {
-      const maxMinutes = parseInt(durationFilter);
-      const exerciseMinutes = exercise.duration_seconds / 60;
-      if (exerciseMinutes > maxMinutes) {
+  const filteredExercises = useMemo(() => {
+    return exercises.filter((exercise) => {
+      // Category filter
+      if (categoryFilter !== 'all' && exercise.type !== categoryFilter) {
         return false;
       }
-    }
 
-    // Target area filter
-    if (targetFilter !== 'all') {
-      if (!exercise.target_areas?.includes(targetFilter)) {
-        return false;
+      // Duration filter
+      if (durationFilter !== 'all') {
+        const maxMinutes = parseInt(durationFilter);
+        const exerciseMinutes = exercise.duration_seconds / 60;
+        if (exerciseMinutes > maxMinutes) {
+          return false;
+        }
       }
-    }
 
-    return true;
-  });
+      // Target area filter
+      if (targetFilter !== 'all') {
+        if (!exercise.target_areas?.includes(targetFilter)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [exercises, categoryFilter, durationFilter, targetFilter]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.round(seconds / 60);
     return `${mins} min`;
   };
 
-  if (isLoading) {
+  if (isLoading || userLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="animate-pulse-gentle">
@@ -164,24 +201,7 @@ export default function LibraryPage() {
           <h2 className="text-lg font-semibold text-red-400 mb-2">Error Loading Exercises</h2>
           <p className="text-text-secondary mb-4">{error}</p>
           <button
-            onClick={() => {
-              setIsLoading(true);
-              setError(null);
-              // Trigger re-fetch
-              supabase
-                .from('exercises')
-                .select('*')
-                .order('type', { ascending: true })
-                .order('duration_seconds', { ascending: true })
-                .then(({ data, error: fetchError }) => {
-                  if (fetchError) {
-                    setError(`Failed to load exercises: ${fetchError.message}`);
-                  } else {
-                    setExercises(data || []);
-                  }
-                  setIsLoading(false);
-                });
-            }}
+            onClick={handleRetry}
             className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
           >
             Retry
@@ -396,4 +416,3 @@ export default function LibraryPage() {
     </div>
   );
 }
-

@@ -1,9 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { useUser } from '@/contexts/user-context';
 import { cn } from '@/lib/utils/cn';
 
@@ -71,7 +72,7 @@ export function DashboardNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, isLoading } = useUser();
-  const supabase = createClient();
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();

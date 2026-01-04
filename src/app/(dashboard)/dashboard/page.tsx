@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useUser } from '@/contexts/user-context';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { Card, CardContent, Button } from '@/components/ui';
 import { Exercise, Session } from '@/types';
 
@@ -14,95 +14,160 @@ interface DashboardStats {
   currentStreak: number;
 }
 
+// Timeout for data fetching (10 seconds)
+const FETCH_TIMEOUT = 10000;
+
 export default function DashboardPage() {
-  const { profile, isLoading: userLoading, isPremium } = useUser();
+  const { profile, isLoading: userLoading, isPremium, user } = useUser();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentSessions, setRecentSessions] = useState<(Session & { exercise?: Exercise })[]>([]);
   const [featuredExercises, setFeaturedExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
+  const [error, setError] = useState<string | null>(null);
+  
+  // Use ref to prevent duplicate fetches
+  const fetchAttempted = useRef(false);
+  
+  // Get singleton client - memoized
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
-  useEffect(() => {
-    async function fetchDashboardData() {
-      if (!profile) {
-        setIsLoading(false);
-        return;
-      }
+  const fetchDashboardData = useCallback(async () => {
+    if (!profile || !user) {
+      setIsLoading(false);
+      return;
+    }
 
-      try {
-        // Fetch sessions for stats
-        const { data: sessions } = await supabase
+    // Prevent duplicate fetches
+    if (fetchAttempted.current) {
+      return;
+    }
+    fetchAttempted.current = true;
+
+    try {
+      setError(null);
+      
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+      // Fetch sessions for stats
+      const [sessionsResult, featuredResult] = await Promise.all([
+        supabase
           .from('sessions')
           .select('*, exercise:exercises(*)')
           .eq('user_id', profile.id)
-          .order('completed_at', { ascending: false });
-
-        // Fetch featured exercises
-        const { data: featured } = await supabase
+          .order('completed_at', { ascending: false }),
+        supabase
           .from('exercises')
           .select('*')
           .eq('is_featured', true)
-          .limit(3);
+          .limit(3),
+      ]);
 
-        setFeaturedExercises(featured || []);
+      clearTimeout(timeoutId);
 
-        const totalSessions = sessions?.length || 0;
-        const totalMinutes = Math.round(
-          (sessions?.reduce((acc: number, s: { duration_seconds: number }) => acc + s.duration_seconds, 0) || 0) / 60
-        );
+      if (sessionsResult.error) {
+        console.error('Error fetching sessions:', sessionsResult.error);
+      }
 
-        // Calculate streak (simplified)
-        let currentStreak = 0;
-        if (sessions && sessions.length > 0) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          const sessionDates = sessions.map((s: { completed_at: string }) => {
-            const d = new Date(s.completed_at);
-            d.setHours(0, 0, 0, 0);
-            return d.getTime();
-          });
+      if (featuredResult.error) {
+        console.error('Error fetching featured:', featuredResult.error);
+      }
 
-          const uniqueDates = ([...new Set(sessionDates)] as number[]).sort((a, b) => b - a);
-          
-          for (let i = 0; i < uniqueDates.length; i++) {
-            const expectedDate = new Date(today);
-            expectedDate.setDate(today.getDate() - i);
-            expectedDate.setHours(0, 0, 0, 0);
-            
-            if (uniqueDates[i] === expectedDate.getTime()) {
-              currentStreak++;
-            } else {
-              break;
-            }
-          }
-        }
+      const sessions = sessionsResult.data || [];
+      setFeaturedExercises(featuredResult.data || []);
 
-        setStats({
-          totalSessions,
-          totalMinutes,
-          currentStreak,
+      const totalSessions = sessions.length;
+      const totalMinutes = Math.round(
+        sessions.reduce((acc: number, s: { duration_seconds: number }) => acc + s.duration_seconds, 0) / 60
+      );
+
+      // Calculate streak (simplified)
+      let currentStreak = 0;
+      if (sessions.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const sessionDates = sessions.map((s: { completed_at: string }) => {
+          const d = new Date(s.completed_at);
+          d.setHours(0, 0, 0, 0);
+          return d.getTime();
         });
 
-        setRecentSessions(sessions?.slice(0, 5) || []);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setIsLoading(false);
+        const uniqueDates = ([...new Set(sessionDates)] as number[]).sort((a, b) => b - a);
+        
+        for (let i = 0; i < uniqueDates.length; i++) {
+          const expectedDate = new Date(today);
+          expectedDate.setDate(today.getDate() - i);
+          expectedDate.setHours(0, 0, 0, 0);
+          
+          if (uniqueDates[i] === expectedDate.getTime()) {
+            currentStreak++;
+          } else {
+            break;
+          }
+        }
       }
-    }
 
+      setStats({
+        totalSessions,
+        totalMinutes,
+        currentStreak,
+      });
+
+      setRecentSessions(sessions.slice(0, 5));
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Request timed out. Please check your connection.');
+      } else {
+        setError('Failed to load dashboard data.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [profile, user, supabase]);
+
+  useEffect(() => {
+    // Reset fetch attempted when profile changes
+    fetchAttempted.current = false;
+    
     // Only fetch when user loading is complete
     if (!userLoading) {
       fetchDashboardData();
     }
-  }, [profile, userLoading, supabase]);
+  }, [profile, userLoading, fetchDashboardData]);
+
+  // Handle retry
+  const handleRetry = useCallback(() => {
+    fetchAttempted.current = false;
+    setIsLoading(true);
+    setError(null);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   if (userLoading || isLoading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="animate-pulse-gentle">
           <div className="w-12 h-12 rounded-full bg-accent/30" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-8">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 text-center">
+          <h2 className="text-lg font-semibold text-red-400 mb-2">Something went wrong</h2>
+          <p className="text-text-secondary mb-4">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

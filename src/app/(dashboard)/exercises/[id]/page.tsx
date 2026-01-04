@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { useUser } from '@/contexts/user-context';
 import { PMRPlayer, BreathingGuide, MeditationPlayer } from '@/components/exercises';
 import { Exercise } from '@/types';
@@ -12,34 +12,39 @@ export default function ExercisePage({ params }: { params: Promise<{ id: string 
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { profile } = useUser();
-  const supabase = createClient();
+  const supabase = useMemo(() => getSupabaseClient(), []);
   const router = useRouter();
+  const fetchAttempted = useRef(false);
+
+  const fetchData = useCallback(async () => {
+    if (fetchAttempted.current) return;
+    fetchAttempted.current = true;
+    
+    try {
+      // Fetch exercise details
+      const { data: exerciseData } = await supabase
+        .from('exercises')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (!exerciseData) {
+        router.push('/library');
+        return;
+      }
+
+      setExercise(exerciseData);
+    } catch (error) {
+      console.error('Error fetching exercise:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, supabase, router]);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        // Fetch exercise details
-        const { data: exerciseData } = await supabase
-          .from('exercises')
-          .select('*')
-          .eq('id', id)
-          .single();
-
-        if (!exerciseData) {
-          router.push('/library');
-          return;
-        }
-
-        setExercise(exerciseData);
-      } catch (error) {
-        console.error('Error fetching exercise:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
+    fetchAttempted.current = false;
     fetchData();
-  }, [id, supabase, router]);
+  }, [fetchData]);
 
   const handleComplete = async (durationSeconds: number) => {
     if (!profile || !exercise) return;

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { useUser } from '@/contexts/user-context';
 import { Card, Button, Input } from '@/components/ui';
 
@@ -13,7 +13,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => getSupabaseClient(), []);
   const router = useRouter();
 
   const handleUpdateProfile = async (e: React.FormEvent) => {

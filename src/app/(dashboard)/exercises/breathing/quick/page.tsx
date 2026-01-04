@@ -1,9 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { BreathingGuide } from '@/components/exercises';
 import { useUser } from '@/contexts/user-context';
-import { createClient } from '@/lib/supabase/client';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import { Exercise } from '@/types';
 
 // Quick 2-minute breathing exercise (4-4-4-4 box breathing pattern)
@@ -34,7 +35,7 @@ const quickBreathingExercise: Exercise = {
 export default function QuickBreathingPage() {
   const router = useRouter();
   const { profile } = useUser();
-  const supabase = createClient();
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
   const handleComplete = async (durationSeconds: number) => {
     // Save session if user is logged in
