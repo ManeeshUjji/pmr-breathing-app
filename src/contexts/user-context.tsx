@@ -96,26 +96,23 @@ export function UserProvider({ children }: { children: ReactNode }) {
     console.log('Fetching subscription for:', userId);
     try {
       const supabase = getSupabaseClient();
+      // Use maybeSingle() instead of single() to avoid errors when no subscription exists
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      // PGRST116 = no rows found (normal for free users)
-      // Also handle 406 errors gracefully (table might not exist)
       if (error) {
-        if (error.code === 'PGRST116' || error.message?.includes('406')) {
-          console.log('Subscription: none (user is on free plan)');
-          return null;
-        }
-        console.error('Subscription fetch error:', error.code, error.message);
+        // Silently handle all subscription errors - user is just on free plan
+        console.log('Subscription: none (user is on free plan)');
         return null;
       }
-      console.log('Subscription fetched:', data ? 'found' : 'none');
+      console.log('Subscription:', data ? 'premium' : 'free');
       return data as Subscription | null;
-    } catch (error) {
-      console.error('Subscription fetch exception:', error);
+    } catch {
+      // Silently fail - user is on free plan
+      console.log('Subscription: none');
       return null;
     }
   }, []);
