@@ -14,8 +14,20 @@ interface DashboardStats {
   currentStreak: number;
 }
 
-// Timeout for data fetching (10 seconds)
-const FETCH_TIMEOUT = 10000;
+// Timeout for data fetching (8 seconds)
+const FETCH_TIMEOUT = 8000;
+
+// Clear Supabase auth and reload
+function resetAuth() {
+  console.log('Resetting auth...');
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('sb-')) {
+      localStorage.removeItem(key);
+    }
+  }
+  window.location.href = '/login';
+}
 
 export default function DashboardPage() {
   const { profile, isLoading: userLoading, isPremium, user } = useUser();
@@ -24,12 +36,25 @@ export default function DashboardPage() {
   const [featuredExercises, setFeaturedExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showTimeoutMessage, setShowTimeoutMessage] = useState(false);
   
   // Use ref to prevent duplicate fetches
   const fetchAttempted = useRef(false);
   
   // Get singleton client - memoized
   const supabase = useMemo(() => getSupabaseClient(), []);
+
+  // Hard timeout for the entire page
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (userLoading || isLoading) {
+        console.warn('Page loading timeout');
+        setShowTimeoutMessage(true);
+        setIsLoading(false);
+      }
+    }, FETCH_TIMEOUT);
+    return () => clearTimeout(timeout);
+  }, [userLoading, isLoading]);
 
   const fetchDashboardData = useCallback(async () => {
     if (!profile || !user) {
@@ -148,10 +173,21 @@ export default function DashboardPage() {
 
   if (userLoading || isLoading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
         <div className="animate-pulse-gentle">
           <div className="w-12 h-12 rounded-full bg-accent/30" />
         </div>
+        {showTimeoutMessage && (
+          <div className="text-center">
+            <p className="text-text-secondary mb-3">Taking longer than expected...</p>
+            <button
+              onClick={resetAuth}
+              className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors text-sm"
+            >
+              Reset and try again
+            </button>
+          </div>
+        )}
       </div>
     );
   }

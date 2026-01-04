@@ -15,8 +15,49 @@ import { Profile, Subscription, UserContextType } from '@/types';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-// Maximum time to wait for auth initialization (10 seconds)
-const MAX_AUTH_WAIT = 10000;
+// Maximum time to wait for auth (5 seconds - reduced for faster fallback)
+const MAX_AUTH_WAIT = 5000;
+
+// Check if Supabase auth storage is corrupted
+function isAuthStorageCorrupted(): boolean {
+  try {
+    // Check for Supabase auth keys in localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('sb-')) {
+        const value = localStorage.getItem(key);
+        if (value) {
+          // Try to parse - if it fails, storage is corrupted
+          try {
+            JSON.parse(value);
+          } catch {
+            console.error('Corrupted auth storage detected:', key);
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+// Clear all Supabase auth storage
+function clearAuthStorage(): void {
+  console.log('Clearing Supabase auth storage...');
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('sb-')) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(key => {
+    localStorage.removeItem(key);
+    console.log('Removed:', key);
+  });
+}
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -25,67 +66,55 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   
-  // Use refs to avoid dependency issues
   const isInitialized = useRef(false);
-  const supabaseRef = useRef(getSupabaseClient());
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Failsafe: Always stop loading after MAX_AUTH_WAIT
-  useEffect(() => {
-    timeoutRef.current = setTimeout(() => {
-      if (isLoading) {
-        console.warn('Auth initialization timed out, forcing completion');
-        setIsLoading(false);
-        setAuthError('Loading took too long. Please refresh if you experience issues.');
-      }
-    }, MAX_AUTH_WAIT);
-
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, [isLoading]);
+  const loadingRef = useRef(true); // Track loading state with ref for timeout callback
 
   const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
+    console.log('Fetching profile for:', userId);
     try {
-      const { data, error } = await supabaseRef.current
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
       if (error) {
-        console.error('Error fetching profile:', error);
+        console.error('Profile fetch error:', error);
         return null;
       }
+      console.log('Profile fetched successfully');
       return data as Profile;
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Profile fetch exception:', error);
       return null;
     }
   }, []);
 
   const fetchSubscription = useCallback(async (userId: string): Promise<Subscription | null> => {
+    console.log('Fetching subscription for:', userId);
     try {
-      const { data, error } = await supabaseRef.current
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('user_id', userId)
         .single();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching subscription:', error);
+        console.error('Subscription fetch error:', error);
         return null;
       }
+      console.log('Subscription fetched:', data ? 'found' : 'none');
       return data as Subscription | null;
     } catch (error) {
-      console.error('Error fetching subscription:', error);
+      console.error('Subscription fetch exception:', error);
       return null;
     }
   }, []);
 
   const fetchUserData = useCallback(async (userId: string) => {
+    console.log('Fetching user data...');
     try {
       const [profileData, subscriptionData] = await Promise.all([
         fetchProfile(userId),
@@ -93,10 +122,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       ]);
       setProfile(profileData);
       setSubscription(subscriptionData);
-      setAuthError(null);
+      console.log('User data fetch complete');
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      // Don't set auth error for data fetch failures - user can still use the app
+      console.error('User data fetch error:', error);
     }
   }, [fetchProfile, fetchSubscription]);
 
@@ -106,43 +134,37 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [user, fetchUserData]);
 
   const clearUserData = useCallback(() => {
+    console.log('Clearing user data');
     setUser(null);
     setProfile(null);
     setSubscription(null);
     setAuthError(null);
   }, []);
 
+  const finishLoading = useCallback(() => {
+    console.log('Finishing loading');
+    loadingRef.current = false;
+    setIsLoading(false);
+  }, []);
+
   // Handle auth state changes
   const handleAuthChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
-    console.log('Auth state change:', event);
-    
-    // Clear the timeout since we got an auth event
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+    console.log('Auth event:', event, session?.user?.email || 'no user');
     
     switch (event) {
       case 'INITIAL_SESSION':
-        // This is handled by our initialization, but also set loading false here
-        if (session?.user) {
-          setUser(session.user);
-          await fetchUserData(session.user.id);
-        }
-        setIsLoading(false);
-        break;
-        
       case 'SIGNED_IN':
       case 'TOKEN_REFRESHED':
         if (session?.user) {
           setUser(session.user);
           await fetchUserData(session.user.id);
         }
-        setIsLoading(false);
+        finishLoading();
         break;
         
       case 'SIGNED_OUT':
         clearUserData();
-        setIsLoading(false);
+        finishLoading();
         break;
         
       case 'USER_UPDATED':
@@ -152,112 +174,117 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
         break;
         
-      case 'PASSWORD_RECOVERY':
+      default:
         break;
     }
-  }, [fetchUserData, clearUserData]);
+  }, [fetchUserData, clearUserData, finishLoading]);
 
   useEffect(() => {
-    // Prevent double initialization
     if (isInitialized.current) {
+      console.log('Already initialized, skipping');
       return;
     }
     isInitialized.current = true;
+    console.log('Initializing auth...');
 
-    const supabase = supabaseRef.current;
+    // Check for corrupted storage first
+    if (isAuthStorageCorrupted()) {
+      console.log('Corrupted storage detected, clearing...');
+      clearAuthStorage();
+    }
+
+    const supabase = getSupabaseClient();
     let isMounted = true;
 
-    const initializeAuth = async () => {
-      try {
-        // First, try to get the session from storage
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // Failsafe timeout
+    const timeout = setTimeout(() => {
+      if (loadingRef.current) {
+        console.warn('Auth timeout - forcing completion');
+        finishLoading();
+      }
+    }, MAX_AUTH_WAIT);
 
-        if (!isMounted) return;
+    const initializeAuth = async () => {
+      console.log('Getting session...');
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('Session result:', session?.user?.email || 'no session', sessionError?.message || 'no error');
+
+        if (!isMounted) {
+          console.log('Component unmounted, aborting');
+          return;
+        }
 
         if (sessionError) {
-          console.error('Session error:', sessionError);
-          // Clear potentially corrupted session data
-          try {
-            await supabase.auth.signOut();
-          } catch {
-            // Ignore signout errors
-          }
-          setIsLoading(false);
+          console.error('Session error, clearing storage');
+          clearAuthStorage();
+          finishLoading();
           return;
         }
 
         if (!session?.user) {
-          // No session, that's fine - user is not logged in
-          setIsLoading(false);
+          console.log('No session, finishing');
+          finishLoading();
           return;
         }
 
-        // We have a session, validate it with the server
+        // Validate session
+        console.log('Validating session with getUser...');
         const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+        console.log('Validation result:', validatedUser?.email || 'no user', userError?.message || 'no error');
 
         if (!isMounted) return;
 
-        if (userError) {
-          console.warn('Session validation failed:', userError.message);
-          // Session is invalid - sign out and clear
-          try {
-            await supabase.auth.signOut();
-          } catch {
-            // Ignore signout errors
-          }
+        if (userError || !validatedUser) {
+          console.warn('Session invalid, signing out');
+          clearAuthStorage();
+          await supabase.auth.signOut().catch(() => {});
           clearUserData();
-          setIsLoading(false);
+          finishLoading();
           return;
         }
 
-        if (!validatedUser) {
-          // No user returned - session is invalid
-          try {
-            await supabase.auth.signOut();
-          } catch {
-            // Ignore signout errors
-          }
-          clearUserData();
-          setIsLoading(false);
-          return;
-        }
-
-        // Session is valid - set user and fetch data
+        console.log('Session valid, setting user');
         setUser(validatedUser);
         await fetchUserData(validatedUser.id);
-        setIsLoading(false);
+        finishLoading();
         
       } catch (error) {
-        console.error('Auth initialization error:', error);
+        console.error('Init error:', error);
+        clearAuthStorage();
         if (isMounted) {
-          // Try to clear any corrupted state
-          try {
-            await supabase.auth.signOut();
-          } catch {
-            // Ignore signout errors
-          }
-          setIsLoading(false);
+          finishLoading();
         }
       }
     };
 
-    // Set up auth state change listener BEFORE initializing
-    // This ensures we catch any events fired during initialization
-    const {
-      data: { subscription: authSubscription },
-    } = supabase.auth.onAuthStateChange(handleAuthChange);
+    // Set up listener first
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(handleAuthChange);
 
-    // Now initialize
+    // Then initialize
     initializeAuth();
 
     return () => {
+      console.log('Cleanup');
       isMounted = false;
+      clearTimeout(timeout);
       authSubscription.unsubscribe();
     };
-  }, [handleAuthChange, fetchUserData, clearUserData]);
+  }, [handleAuthChange, fetchUserData, clearUserData, finishLoading]);
 
-  const isPremium =
-    subscription?.status === 'active' || subscription?.status === 'trialing';
+  const isPremium = subscription?.status === 'active' || subscription?.status === 'trialing';
+
+  // Nuclear reset function - available globally for debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as Window & { resetAuth?: () => void }).resetAuth = () => {
+        console.log('Nuclear reset triggered');
+        clearAuthStorage();
+        window.location.reload();
+      };
+      console.log('Debug: call window.resetAuth() to reset auth');
+    }
+  }, []);
 
   return (
     <UserContext.Provider
@@ -271,19 +298,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }}
     >
       {authError && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-amber-600/90 text-white px-4 py-2 rounded-lg shadow-lg max-w-md text-center">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">{authError}</span>
-            <button 
-              onClick={() => {
-                setAuthError(null);
-                window.location.reload();
-              }} 
-              className="underline hover:no-underline text-sm font-medium"
-            >
-              Refresh
-            </button>
-          </div>
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-amber-600/90 text-white px-4 py-2 rounded-lg shadow-lg">
+          <span className="text-sm">{authError}</span>
+          <button 
+            onClick={() => {
+              clearAuthStorage();
+              window.location.reload();
+            }} 
+            className="ml-2 underline text-sm"
+          >
+            Reset
+          </button>
         </div>
       )}
       {children}
