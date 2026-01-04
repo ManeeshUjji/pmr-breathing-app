@@ -5,20 +5,20 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useUser } from '@/contexts/user-context';
 import { createClient } from '@/lib/supabase/client';
-import { Card, CardHeader, CardTitle, CardContent, Button } from '@/components/ui';
-import { Program, UserProgram, Session } from '@/types';
+import { Card, CardContent, Button } from '@/components/ui';
+import { Exercise, Session } from '@/types';
 
 interface DashboardStats {
   totalSessions: number;
   totalMinutes: number;
   currentStreak: number;
-  activeProgram: (UserProgram & { program: Program }) | null;
 }
 
 export default function DashboardPage() {
   const { profile, isLoading: userLoading, isPremium } = useUser();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentSessions, setRecentSessions] = useState<Session[]>([]);
+  const [recentSessions, setRecentSessions] = useState<(Session & { exercise?: Exercise })[]>([]);
+  const [featuredExercises, setFeaturedExercises] = useState<Exercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const supabase = createClient();
 
@@ -33,17 +33,18 @@ export default function DashboardPage() {
         // Fetch sessions for stats
         const { data: sessions } = await supabase
           .from('sessions')
-          .select('*')
+          .select('*, exercise:exercises(*)')
           .eq('user_id', profile.id)
           .order('completed_at', { ascending: false });
 
-        // Fetch active program
-        const { data: activePrograms } = await supabase
-          .from('user_programs')
-          .select('*, program:programs(*)')
-          .eq('user_id', profile.id)
-          .eq('is_active', true)
-          .limit(1);
+        // Fetch featured exercises
+        const { data: featured } = await supabase
+          .from('exercises')
+          .select('*')
+          .eq('is_featured', true)
+          .limit(3);
+
+        setFeaturedExercises(featured || []);
 
         const totalSessions = sessions?.length || 0;
         const totalMinutes = Math.round(
@@ -81,7 +82,6 @@ export default function DashboardPage() {
           totalSessions,
           totalMinutes,
           currentStreak,
-          activeProgram: activePrograms?.[0] as (UserProgram & { program: Program }) || null,
         });
 
         setRecentSessions(sessions?.slice(0, 5) || []);
@@ -115,6 +115,11 @@ export default function DashboardPage() {
     return 'Good evening';
   };
 
+  const formatDuration = (seconds: number) => {
+    const mins = Math.round(seconds / 60);
+    return `${mins} min`;
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-6 py-8">
       {/* Header */}
@@ -132,72 +137,33 @@ export default function DashboardPage() {
         </p>
       </motion.div>
 
-      {/* Quick start section */}
-      {stats?.activeProgram ? (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="mb-8"
-        >
-          <Card variant="elevated" className="bg-gradient-to-br from-accent/10 to-lavender/10">
-            <CardHeader>
-              <p className="text-sm text-text-secondary">Continue your program</p>
-              <CardTitle className="text-xl">
-                {stats.activeProgram.program.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-text-secondary">
-                    Day {stats.activeProgram.current_day} of{' '}
-                    {stats.activeProgram.program.duration_days}
-                  </p>
-                  <div className="mt-2 w-48 h-2 bg-bg-tertiary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-accent rounded-full transition-all"
-                      style={{
-                        width: `${(stats.activeProgram.current_day / stats.activeProgram.program.duration_days) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <Link href={`/programs/${stats.activeProgram.program_id}`}>
-                  <Button size="lg">Continue</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="mb-8"
-        >
-          <Card variant="elevated" className="bg-gradient-to-br from-accent/10 to-lavender/10">
-            <CardContent className="flex flex-col md:flex-row items-center justify-between gap-4 py-6">
-              <div>
-                <h2 className="text-xl font-semibold text-text-primary">
-                  Start Your Journey
-                </h2>
-                <p className="text-text-secondary mt-1">
-                  {profile?.quiz_completed
-                    ? 'Choose a program to begin your relaxation practice'
-                    : 'Take a quick quiz to find the perfect program for you'}
-                </p>
-              </div>
-              <Link href={profile?.quiz_completed ? '/programs' : '/onboarding'}>
-                <Button size="lg">
-                  {profile?.quiz_completed ? 'Browse Programs' : 'Take Quiz'}
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
+      {/* Start a session CTA */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="mb-8"
+      >
+        <Card variant="elevated" className="bg-gradient-to-br from-accent/10 to-lavender/10">
+          <CardContent className="flex flex-col md:flex-row items-center justify-between gap-4 py-6">
+            <div>
+              <h2 className="text-xl font-semibold text-text-primary">
+                Start a Session
+              </h2>
+              <p className="text-text-secondary mt-1">
+                {profile?.quiz_completed
+                  ? 'Pick an exercise from the library or try one of your quick sessions below'
+                  : 'Take a quick quiz to get personalized recommendations'}
+              </p>
+            </div>
+            <Link href={profile?.quiz_completed ? '/library' : '/onboarding'}>
+              <Button size="lg">
+                {profile?.quiz_completed ? 'Browse Library' : 'Take Quiz'}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Stats grid */}
       <motion.div
@@ -334,6 +300,48 @@ export default function DashboardPage() {
         </div>
       </motion.div>
 
+      {/* Featured exercises */}
+      {featuredExercises.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.35 }}
+          className="mt-8"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-text-primary">
+              Featured Exercises
+            </h2>
+            <Link href="/library" className="text-sm text-accent hover:underline">
+              View all
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {featuredExercises.map((exercise) => (
+              <Card key={exercise.id} hoverable className="cursor-pointer">
+                <Link href={`/exercises/${exercise.id}`} className="block">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-warning" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-text-primary">
+                        {exercise.title}
+                      </h3>
+                      <p className="text-sm text-text-secondary">
+                        {formatDuration(exercise.duration_seconds)}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              </Card>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Recent sessions */}
       {recentSessions.length > 0 && (
         <motion.div
@@ -351,7 +359,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-text-primary">
-                      {Math.round(session.duration_seconds / 60)} min session
+                      {session.exercise?.title || `${Math.round(session.duration_seconds / 60)} min session`}
                     </p>
                     <p className="text-sm text-text-muted">
                       {new Date(session.completed_at).toLocaleDateString()}
@@ -384,4 +392,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

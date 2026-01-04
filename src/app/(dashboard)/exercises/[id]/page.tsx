@@ -5,12 +5,11 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/contexts/user-context';
 import { PMRPlayer, BreathingGuide, MeditationPlayer } from '@/components/exercises';
-import { Exercise, UserProgram } from '@/types';
+import { Exercise } from '@/types';
 
 export default function ExercisePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [exercise, setExercise] = useState<Exercise | null>(null);
-  const [userProgram, setUserProgram] = useState<UserProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { profile } = useUser();
   const supabase = createClient();
@@ -27,23 +26,11 @@ export default function ExercisePage({ params }: { params: Promise<{ id: string 
           .single();
 
         if (!exerciseData) {
-          router.push('/programs');
+          router.push('/library');
           return;
         }
 
         setExercise(exerciseData);
-
-        // Fetch user program for this exercise if exists
-        if (profile && exerciseData.program_id) {
-          const { data: userProgramData } = await supabase
-            .from('user_programs')
-            .select('*')
-            .eq('user_id', profile.id)
-            .eq('program_id', exerciseData.program_id)
-            .single();
-
-          setUserProgram(userProgramData);
-        }
       } catch (error) {
         console.error('Error fetching exercise:', error);
       } finally {
@@ -52,53 +39,25 @@ export default function ExercisePage({ params }: { params: Promise<{ id: string 
     }
 
     fetchData();
-  }, [id, profile, supabase, router]);
+  }, [id, supabase, router]);
 
   const handleComplete = async (durationSeconds: number) => {
     if (!profile || !exercise) return;
 
     try {
-      // Save session
+      // Save session (no program progress tracking)
       await supabase.from('sessions').insert({
         user_id: profile.id,
         exercise_id: exercise.id,
-        user_program_id: userProgram?.id,
         duration_seconds: durationSeconds,
       });
 
-      // Update user program progress if this was the current day's exercise
-      if (userProgram && exercise.day_number === userProgram.current_day) {
-        const { data: programData } = await supabase
-          .from('programs')
-          .select('duration_days')
-          .eq('id', exercise.program_id)
-          .single();
-
-        if (programData) {
-          const isComplete = userProgram.current_day >= programData.duration_days;
-
-          await supabase
-            .from('user_programs')
-            .update({
-              current_day: isComplete
-                ? userProgram.current_day
-                : userProgram.current_day + 1,
-              completed_at: isComplete ? new Date().toISOString() : null,
-            })
-            .eq('id', userProgram.id);
-        }
-      }
-
-      // Navigate back to program or dashboard
-      if (exercise.program_id) {
-        router.push(`/programs/${exercise.program_id}`);
-      } else {
-        router.push('/dashboard');
-      }
+      // Navigate back to library
+      router.push('/library');
       router.refresh();
     } catch (error) {
       console.error('Error saving session:', error);
-      router.push('/dashboard');
+      router.push('/library');
     }
   };
 
@@ -128,4 +87,3 @@ export default function ExercisePage({ params }: { params: Promise<{ id: string 
       return <PMRPlayer exercise={exercise} onComplete={handleComplete} />;
   }
 }
-

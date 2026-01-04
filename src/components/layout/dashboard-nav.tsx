@@ -28,8 +28,8 @@ const navItems = [
     ),
   },
   {
-    label: 'Programs',
-    href: '/programs',
+    label: 'Library',
+    href: '/library',
     icon: (
       <svg
         className="w-6 h-6"
@@ -168,4 +168,5 @@ export function DashboardNav() {
     </>
   );
 }
+
 

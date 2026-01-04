@@ -102,6 +102,8 @@ export interface Database {
           audio_script: string | null;
           muscle_groups: string[] | null;
           breathing_pattern: Json | null;
+          target_areas: string[];
+          is_featured: boolean;
           created_at: string;
         };
         Insert: {
@@ -117,6 +119,8 @@ export interface Database {
           audio_script?: string | null;
           muscle_groups?: string[] | null;
           breathing_pattern?: Json | null;
+          target_areas?: string[];
+          is_featured?: boolean;
           created_at?: string;
         };
         Update: {
@@ -132,6 +136,8 @@ export interface Database {
           audio_script?: string | null;
           muscle_groups?: string[] | null;
           breathing_pattern?: Json | null;
+          target_areas?: string[];
+          is_featured?: boolean;
           created_at?: string;
         };
       };

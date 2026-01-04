@@ -21,7 +21,7 @@ export interface QuizResults {
   experienceLevel: 'beginner' | 'intermediate' | 'advanced';
   preferredDuration: number;
   focusAreas: string[];
-  recommendedProgramId: string;
+  recommendedExerciseIds: string[];
 }
 
 // Exercise player types

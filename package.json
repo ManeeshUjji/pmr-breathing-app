@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify-migration": "node scripts/verify-migration.mjs"
   },
   "dependencies": {
     "@stripe/stripe-js": "^8.6.0",

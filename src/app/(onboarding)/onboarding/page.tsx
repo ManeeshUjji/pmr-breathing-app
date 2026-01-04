@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { Button, Card } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { QuizQuestion, QuizResults } from '@/types';
 
 const questions: QuizQuestion[] = [
@@ -70,49 +70,71 @@ const questions: QuizQuestion[] = [
   },
 ];
 
-// Map quiz results to program recommendations
-function getRecommendedProgram(results: QuizResults): string {
-  const { goals, experienceLevel, focusAreas } = results;
+// Map quiz results to exercise recommendations
+// Returns an array of target areas and types to filter exercises
+function getRecommendedFilters(results: QuizResults): { types: string[]; targetAreas: string[] } {
+  const { goals, focusAreas, stressSources } = results;
   
-  // Beginner always gets intro program
-  if (experienceLevel === 'beginner') {
-    if (goals.includes('better-sleep')) {
-      return '550e8400-e29b-41d4-a716-446655440002'; // Breathing Basics (free)
-    }
-    return '550e8400-e29b-41d4-a716-446655440001'; // Introduction to PMR (free)
+  const types: string[] = [];
+  const targetAreas: string[] = [];
+  
+  // Add breathing for anxiety/stress
+  if (goals.includes('calm-anxiety') || stressSources.includes('general')) {
+    types.push('breathing');
+    targetAreas.push('anxiety');
+  }
+  
+  // Add PMR for physical tension
+  if (goals.includes('release-tension') || stressSources.includes('physical')) {
+    types.push('pmr');
+  }
+  
+  // Add specific areas
+  if (focusAreas.includes('jaw')) {
+    targetAreas.push('jaw', 'face');
+  }
+  if (focusAreas.includes('neck')) {
+    targetAreas.push('neck');
+  }
+  if (focusAreas.includes('shoulders')) {
+    targetAreas.push('shoulders');
+  }
+  if (focusAreas.includes('back')) {
+    targetAreas.push('back');
+  }
+  if (focusAreas.includes('hands')) {
+    targetAreas.push('arms');
+  }
+  if (focusAreas.includes('all')) {
+    targetAreas.push('full_body');
   }
   
   // Sleep focus
-  if (goals.includes('better-sleep')) {
-    return '550e8400-e29b-41d4-a716-446655440005'; // Sleep Well Tonight
+  if (goals.includes('better-sleep') || stressSources.includes('sleep')) {
+    types.push('breathing');
+    targetAreas.push('sleep');
   }
   
-  // Specific tension areas
-  if (focusAreas.includes('jaw') && !focusAreas.includes('all')) {
-    return '550e8400-e29b-41d4-a716-446655440006'; // Jaw & Face Tension
+  // Focus/work stress
+  if (goals.includes('focus') || stressSources.includes('work')) {
+    types.push('breathing', 'meditation');
+    targetAreas.push('focus', 'calm');
   }
   
-  if ((focusAreas.includes('neck') || focusAreas.includes('shoulders')) && !focusAreas.includes('all')) {
-    return '550e8400-e29b-41d4-a716-446655440007'; // Neck & Shoulders
+  // Default to all types if none selected
+  if (types.length === 0) {
+    types.push('pmr', 'breathing');
   }
   
-  // Anxiety focus
-  if (goals.includes('calm-anxiety')) {
-    return '550e8400-e29b-41d4-a716-446655440008'; // Anxiety Relief
+  // Default target areas
+  if (targetAreas.length === 0) {
+    targetAreas.push('calm', 'full_body');
   }
   
-  // Work stress
-  if (results.stressSources.includes('work')) {
-    return '550e8400-e29b-41d4-a716-446655440004'; // Office-Friendly
-  }
-  
-  // Advanced users
-  if (experienceLevel === 'advanced') {
-    return '550e8400-e29b-41d4-a716-446655440010'; // Advanced Mastery
-  }
-  
-  // Default to full body PMR
-  return '550e8400-e29b-41d4-a716-446655440003'; // Full Body PMR Journey
+  return {
+    types: [...new Set(types)],
+    targetAreas: [...new Set(targetAreas)],
+  };
 }
 
 export default function OnboardingPage() {
@@ -166,18 +188,60 @@ export default function OnboardingPage() {
           return;
         }
 
-        const results: QuizResults = {
+        const quizData: Omit<QuizResults, 'recommendedExerciseIds'> = {
           stressSources: answers['stress-sources'] || [],
           goals: answers['goals'] || [],
           experienceLevel: (answers['experience']?.[0] as QuizResults['experienceLevel']) || 'beginner',
           preferredDuration: parseInt(answers['duration']?.[0] || '10'),
           focusAreas: answers['focus-areas'] || [],
-          recommendedProgramId: '',
         };
         
-        results.recommendedProgramId = getRecommendedProgram(results);
+        // Get recommended filters based on quiz answers
+        const filters = getRecommendedFilters(quizData as QuizResults);
+        
+        // Fetch exercises matching the filters
+        let query = supabase
+          .from('exercises')
+          .select('id, type, target_areas, duration_seconds')
+          .order('is_featured', { ascending: false })
+          .order('duration_seconds', { ascending: true });
+        
+        // Filter by preferred duration
+        const maxSeconds = quizData.preferredDuration * 60 + 120; // Add 2 min buffer
+        query = query.lte('duration_seconds', maxSeconds);
+        
+        const { data: exercises } = await query;
+        
+        // Score and rank exercises based on matches
+        const scoredExercises = (exercises || []).map(exercise => {
+          let score = 0;
+          
+          // Type match
+          if (filters.types.includes(exercise.type)) {
+            score += 2;
+          }
+          
+          // Target area matches
+          const exerciseAreas = exercise.target_areas || [];
+          for (const area of filters.targetAreas) {
+            if (exerciseAreas.includes(area)) {
+              score += 1;
+            }
+          }
+          
+          return { id: exercise.id, score };
+        });
+        
+        // Sort by score and take top 5
+        scoredExercises.sort((a, b) => b.score - a.score);
+        const recommendedExerciseIds = scoredExercises.slice(0, 5).map(e => e.id);
 
-        // Update profile with quiz results
+        const results: QuizResults = {
+          ...quizData,
+          recommendedExerciseIds,
+        };
+
+        // Update profile with quiz results (no program enrollment!)
         await supabase
           .from('profiles')
           .update({
@@ -189,15 +253,8 @@ export default function OnboardingPage() {
           })
           .eq('id', user.id);
 
-        // Enroll user in recommended program
-        await supabase.from('user_programs').insert({
-          user_id: user.id,
-          program_id: results.recommendedProgramId,
-          current_day: 1,
-          is_active: true,
-        });
-
-        router.push(`/programs/${results.recommendedProgramId}`);
+        // Redirect to library (not a program page)
+        router.push('/library');
         router.refresh();
       } catch (error) {
         console.error('Error saving quiz results:', error);
@@ -301,7 +358,7 @@ export default function OnboardingPage() {
             fullWidth
             size="lg"
           >
-            {currentStep === questions.length - 1 ? 'See My Program' : 'Continue'}
+            {currentStep === questions.length - 1 ? 'See My Recommendations' : 'Continue'}
           </Button>
         </div>
       </footer>
@@ -314,4 +371,3 @@ export default function OnboardingPage() {
     </div>
   );
 }
-
