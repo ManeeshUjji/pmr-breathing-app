@@ -15,6 +15,9 @@ import { Profile, Subscription, UserContextType } from '@/types';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+// Maximum time to wait for auth initialization (10 seconds)
+const MAX_AUTH_WAIT = 10000;
+
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -22,16 +25,31 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   
-  // Use ref to track if we've initialized
+  // Use refs to avoid dependency issues
   const isInitialized = useRef(false);
-  const fetchInProgress = useRef(false);
-  
-  // Get singleton client
-  const supabase = getSupabaseClient();
+  const supabaseRef = useRef(getSupabaseClient());
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Failsafe: Always stop loading after MAX_AUTH_WAIT
+  useEffect(() => {
+    timeoutRef.current = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Auth initialization timed out, forcing completion');
+        setIsLoading(false);
+        setAuthError('Loading took too long. Please refresh if you experience issues.');
+      }
+    }, MAX_AUTH_WAIT);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [isLoading]);
 
   const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseRef.current
         .from('profiles')
         .select('*')
         .eq('id', userId)
@@ -46,11 +64,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.error('Error fetching profile:', error);
       return null;
     }
-  }, [supabase]);
+  }, []);
 
   const fetchSubscription = useCallback(async (userId: string): Promise<Subscription | null> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseRef.current
         .from('subscriptions')
         .select('*')
         .eq('user_id', userId)
@@ -65,16 +83,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.error('Error fetching subscription:', error);
       return null;
     }
-  }, [supabase]);
+  }, []);
 
   const fetchUserData = useCallback(async (userId: string) => {
-    // Prevent duplicate fetches
-    if (fetchInProgress.current) {
-      return;
-    }
-    
-    fetchInProgress.current = true;
-    
     try {
       const [profileData, subscriptionData] = await Promise.all([
         fetchProfile(userId),
@@ -85,9 +96,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       setAuthError(null);
     } catch (error) {
       console.error('Error fetching user data:', error);
-      setAuthError('Failed to load user data');
-    } finally {
-      fetchInProgress.current = false;
+      // Don't set auth error for data fetch failures - user can still use the app
     }
   }, [fetchProfile, fetchSubscription]);
 
@@ -96,7 +105,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     await fetchUserData(user.id);
   }, [user, fetchUserData]);
 
-  // Clear all user data
   const clearUserData = useCallback(() => {
     setUser(null);
     setProfile(null);
@@ -108,100 +116,145 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const handleAuthChange = useCallback(async (event: AuthChangeEvent, session: Session | null) => {
     console.log('Auth state change:', event);
     
+    // Clear the timeout since we got an auth event
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
     switch (event) {
       case 'INITIAL_SESSION':
+        // This is handled by our initialization, but also set loading false here
+        if (session?.user) {
+          setUser(session.user);
+          await fetchUserData(session.user.id);
+        }
+        setIsLoading(false);
+        break;
+        
       case 'SIGNED_IN':
       case 'TOKEN_REFRESHED':
         if (session?.user) {
           setUser(session.user);
           await fetchUserData(session.user.id);
         }
+        setIsLoading(false);
         break;
         
       case 'SIGNED_OUT':
         clearUserData();
+        setIsLoading(false);
         break;
         
       case 'USER_UPDATED':
         if (session?.user) {
           setUser(session.user);
-          // Refresh profile data when user is updated
           await fetchUserData(session.user.id);
         }
         break;
         
       case 'PASSWORD_RECOVERY':
-        // Don't do anything special for password recovery
         break;
     }
   }, [fetchUserData, clearUserData]);
 
   useEffect(() => {
-    // Prevent double initialization in StrictMode
+    // Prevent double initialization
     if (isInitialized.current) {
       return;
     }
     isInitialized.current = true;
 
+    const supabase = supabaseRef.current;
     let isMounted = true;
 
     const initializeAuth = async () => {
       try {
-        // First, try to get the session
+        // First, try to get the session from storage
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (!isMounted) return;
 
         if (sessionError) {
           console.error('Session error:', sessionError);
-          setAuthError('Failed to restore session');
+          // Clear potentially corrupted session data
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignore signout errors
+          }
           setIsLoading(false);
           return;
         }
 
-        if (session?.user) {
-          // Validate the session by checking with getUser
-          const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
-
-          if (!isMounted) return;
-
-          if (userError || !validatedUser) {
-            // Session is invalid/expired - clear it
-            console.warn('Session invalid, signing out');
-            await supabase.auth.signOut();
-            clearUserData();
-            setIsLoading(false);
-            return;
-          }
-
-          // Session is valid, set user and fetch data
-          setUser(validatedUser);
-          await fetchUserData(validatedUser.id);
+        if (!session?.user) {
+          // No session, that's fine - user is not logged in
+          setIsLoading(false);
+          return;
         }
+
+        // We have a session, validate it with the server
+        const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
+
+        if (!isMounted) return;
+
+        if (userError) {
+          console.warn('Session validation failed:', userError.message);
+          // Session is invalid - sign out and clear
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignore signout errors
+          }
+          clearUserData();
+          setIsLoading(false);
+          return;
+        }
+
+        if (!validatedUser) {
+          // No user returned - session is invalid
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignore signout errors
+          }
+          clearUserData();
+          setIsLoading(false);
+          return;
+        }
+
+        // Session is valid - set user and fetch data
+        setUser(validatedUser);
+        await fetchUserData(validatedUser.id);
+        setIsLoading(false);
+        
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (isMounted) {
-          setAuthError('Authentication error. Please refresh the page.');
-        }
-      } finally {
-        if (isMounted) {
+          // Try to clear any corrupted state
+          try {
+            await supabase.auth.signOut();
+          } catch {
+            // Ignore signout errors
+          }
           setIsLoading(false);
         }
       }
     };
 
-    initializeAuth();
-
-    // Set up auth state change listener
+    // Set up auth state change listener BEFORE initializing
+    // This ensures we catch any events fired during initialization
     const {
       data: { subscription: authSubscription },
     } = supabase.auth.onAuthStateChange(handleAuthChange);
+
+    // Now initialize
+    initializeAuth();
 
     return () => {
       isMounted = false;
       authSubscription.unsubscribe();
     };
-  }, [supabase, fetchUserData, clearUserData, handleAuthChange]);
+  }, [handleAuthChange, fetchUserData, clearUserData]);
 
   const isPremium =
     subscription?.status === 'active' || subscription?.status === 'trialing';
@@ -217,13 +270,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
         refreshProfile,
       }}
     >
-      {authError && !isLoading && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg">
+      {authError && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-amber-600/90 text-white px-4 py-2 rounded-lg shadow-lg max-w-md text-center">
           <div className="flex items-center gap-2">
-            <span>{authError}</span>
+            <span className="text-sm">{authError}</span>
             <button 
-              onClick={() => window.location.reload()} 
-              className="underline hover:no-underline"
+              onClick={() => {
+                setAuthError(null);
+                window.location.reload();
+              }} 
+              className="underline hover:no-underline text-sm font-medium"
             >
               Refresh
             </button>
