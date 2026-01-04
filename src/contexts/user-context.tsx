@@ -15,19 +15,6 @@ import { Profile, Subscription, UserContextType } from '@/types';
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-// Timeout for data fetching operations (15 seconds)
-const FETCH_TIMEOUT = 15000;
-
-// Helper to add timeout to promises
-function withTimeout<T>(promise: Promise<T>, ms: number, errorMessage: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(errorMessage)), ms)
-    ),
-  ]);
-}
-
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -44,15 +31,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single(),
-        FETCH_TIMEOUT,
-        'Profile fetch timed out'
-      );
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
       if (error) {
         console.error('Error fetching profile:', error);
@@ -67,15 +50,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const fetchSubscription = useCallback(async (userId: string): Promise<Subscription | null> => {
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from('subscriptions')
-          .select('*')
-          .eq('user_id', userId)
-          .single(),
-        FETCH_TIMEOUT,
-        'Subscription fetch timed out'
-      );
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching subscription:', error);
@@ -169,11 +148,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const initializeAuth = async () => {
       try {
         // First, try to get the session
-        const { data: { session }, error: sessionError } = await withTimeout(
-          supabase.auth.getSession(),
-          FETCH_TIMEOUT,
-          'Session fetch timed out'
-        );
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (!isMounted) return;
 
@@ -186,11 +161,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           // Validate the session by checking with getUser
-          const { data: { user: validatedUser }, error: userError } = await withTimeout(
-            supabase.auth.getUser(),
-            FETCH_TIMEOUT,
-            'User validation timed out'
-          );
+          const { data: { user: validatedUser }, error: userError } = await supabase.auth.getUser();
 
           if (!isMounted) return;
 
