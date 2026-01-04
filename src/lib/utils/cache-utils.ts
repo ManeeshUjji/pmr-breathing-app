@@ -1,19 +1,20 @@
 /**
  * Cache utility functions
  * Can be called from browser console: window.clearCache()
+ * 
+ * NOTE: This is for manual use only. No automatic cache clearing is performed.
  */
 
 export async function clearAllCaches() {
   try {
-    // Set flag to trigger cache clear on next page load
-    localStorage.setItem('tranquil_clear_cache', 'true');
+    console.log('🧹 Clearing caches...');
     
     // Unregister all service workers
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
       for (const registration of registrations) {
         await registration.unregister();
-        console.log('SW unregistered:', registration.scope);
+        console.log('✓ Service worker unregistered:', registration.scope);
       }
     }
 
@@ -22,7 +23,7 @@ export async function clearAllCaches() {
       const cacheNames = await caches.keys();
       for (const cacheName of cacheNames) {
         await caches.delete(cacheName);
-        console.log('Cache deleted:', cacheName);
+        console.log('✓ Cache deleted:', cacheName);
       }
     }
 
@@ -47,10 +48,11 @@ export async function clearAllCaches() {
     // Clear sessionStorage
     sessionStorage.clear();
 
-    console.log('✅ All caches cleared! Reloading page...');
-    window.location.reload();
+    console.log('✅ All caches cleared!');
+    console.log('💡 You may need to refresh the page to see changes.');
+    // Don't auto-reload - let user decide when to refresh
   } catch (error) {
-    console.error('Error clearing caches:', error);
+    console.error('❌ Error clearing caches:', error);
   }
 }
 

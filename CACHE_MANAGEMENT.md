@@ -1,12 +1,10 @@
 # Cache Management Guide
 
-## Automatic Cache Clearing
+## Cache Strategy
 
-The app now automatically clears caches when:
-1. **App version changes** - Detects new deployments and clears all caches
-2. **Manual cache clear requested** - Via localStorage flag (see below)
+The app uses Next.js default caching behavior, which automatically handles cache invalidation on deployments. No automatic cache clearing is performed to avoid disrupting user experience.
 
-## Manual Cache Clearing
+## Manual Cache Clearing (If Needed)
 
 ### Option 1: Browser Console (Easiest)
 Open browser console (F12) and run:
@@ -20,34 +18,20 @@ This will:
 - Clear sessionStorage
 - Reload the page
 
-### Option 2: localStorage Flag
-In browser console:
-```javascript
-localStorage.setItem('tranquil_clear_cache', 'true');
-location.reload();
-```
-
-### Option 3: Browser Settings
+### Option 2: Browser Settings
 1. Open DevTools (F12)
 2. Go to Application tab
 3. Clear Storage → Clear site data
 4. Or use browser's "Clear browsing data" option
 
-## Cache Headers
+## Cache Strategy
 
-The app uses aggressive cache-busting headers:
-- **All pages**: `Cache-Control: public, max-age=0, must-revalidate`
-- **Static assets**: `Cache-Control: public, max-age=31536000, immutable`
+The app uses Next.js default caching:
+- **Pages**: Cached with automatic invalidation on deployments
+- **Static assets**: Cached with long-term storage
+- **API routes**: No caching by default
 
-This ensures pages always check for updates while static assets can be cached.
-
-## Version Detection
-
-The app tracks version changes using:
-- `NEXT_PUBLIC_APP_VERSION` environment variable (set at build time)
-- Stored in localStorage as `tranquil_app_version`
-
-When version changes, all caches are automatically cleared on next page load.
+Next.js automatically handles cache invalidation when you deploy new versions, so users will get updates without needing to clear cache manually.
 
 ## Troubleshooting
 
