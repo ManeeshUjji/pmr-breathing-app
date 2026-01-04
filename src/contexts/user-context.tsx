@@ -68,6 +68,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   
   const isInitialized = useRef(false);
   const loadingRef = useRef(true); // Track loading state with ref for timeout callback
+  const hasFetchedData = useRef(false); // Prevent duplicate data fetches
 
   const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     console.log('Fetching profile for:', userId);
@@ -101,8 +102,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Subscription fetch error:', error);
+      // PGRST116 = no rows found (normal for free users)
+      // Also handle 406 errors gracefully (table might not exist)
+      if (error) {
+        if (error.code === 'PGRST116' || error.message?.includes('406')) {
+          console.log('Subscription: none (user is on free plan)');
+          return null;
+        }
+        console.error('Subscription fetch error:', error.code, error.message);
         return null;
       }
       console.log('Subscription fetched:', data ? 'found' : 'none');
@@ -113,7 +120,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const fetchUserData = useCallback(async (userId: string) => {
+  const fetchUserData = useCallback(async (userId: string, force: boolean = false) => {
+    // Prevent duplicate fetches unless forced
+    if (hasFetchedData.current && !force) {
+      console.log('Skipping duplicate fetch');
+      return;
+    }
+    hasFetchedData.current = true;
+    
     console.log('Fetching user data...');
     try {
       const [profileData, subscriptionData] = await Promise.all([
@@ -130,7 +144,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     if (!user) return;
-    await fetchUserData(user.id);
+    await fetchUserData(user.id, true); // Force refresh
   }, [user, fetchUserData]);
 
   const clearUserData = useCallback(() => {
@@ -139,6 +153,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setSubscription(null);
     setAuthError(null);
+    hasFetchedData.current = false;
   }, []);
 
   const finishLoading = useCallback(() => {
@@ -153,6 +168,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
     
     switch (event) {
       case 'INITIAL_SESSION':
+        // Skip if we already initialized manually
+        if (!loadingRef.current) {
+          console.log('Skipping INITIAL_SESSION - already initialized');
+          return;
+        }
+        if (session?.user) {
+          setUser(session.user);
+          await fetchUserData(session.user.id);
+        }
+        finishLoading();
+        break;
+        
       case 'SIGNED_IN':
       case 'TOKEN_REFRESHED':
         if (session?.user) {
@@ -170,7 +197,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       case 'USER_UPDATED':
         if (session?.user) {
           setUser(session.user);
-          await fetchUserData(session.user.id);
+          await fetchUserData(session.user.id, true); // Force refresh on user update
         }
         break;
         
