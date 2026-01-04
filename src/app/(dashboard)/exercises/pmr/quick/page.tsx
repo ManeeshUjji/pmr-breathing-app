@@ -113,6 +113,8 @@ const quickPMRExercise: Exercise = {
   muscle_groups: ['neck', 'shoulders'],
   audio_script: null,
   order_index: 0,
+  target_areas: ['neck', 'shoulders'],
+  is_featured: false,
   created_at: new Date().toISOString(),
 };
 

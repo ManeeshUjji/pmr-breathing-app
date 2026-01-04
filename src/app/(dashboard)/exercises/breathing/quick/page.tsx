@@ -26,6 +26,8 @@ const quickBreathingExercise: Exercise = {
   muscle_groups: null,
   audio_script: null,
   order_index: 0,
+  target_areas: ['calm', 'focus'],
+  is_featured: false,
   created_at: new Date().toISOString(),
 };
 
