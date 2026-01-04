@@ -68,15 +68,9 @@ export default function LandingPage() {
           <Link href="/" className="text-xl font-semibold text-text-primary font-[family-name:var(--font-dm-serif)]">
             Tranquil
           </Link>
-          <nav className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
-              Sign in
-            </Link>
-            <Link href="/signup">
-              <Button size="sm">Get Started</Button>
+          <nav className="flex items-center">
+            <Link href="/quiz">
+              <Button size="sm">Help Us Build This</Button>
             </Link>
           </nav>
         </div>
@@ -128,9 +122,9 @@ export default function LandingPage() {
             transition={{ duration: 0.8, delay: 0.4 }}
             className="mt-10 flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <Link href="/signup">
+            <Link href="/quiz">
               <Button size="lg" className="px-10">
-                Start Free
+                Help Us Build This
               </Button>
             </Link>
             <Link href="#features">
@@ -309,7 +303,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Waitlist Section */}
       <section className="py-20 md:py-32 px-6 bg-gradient-to-br from-accent/5 to-lavender/5">
         <div className="max-w-3xl mx-auto text-center">
           <motion.div
@@ -319,15 +313,23 @@ export default function LandingPage() {
             transition={{ duration: 0.6 }}
           >
             <h2 className="text-3xl md:text-4xl font-light text-text-primary font-[family-name:var(--font-dm-serif)] mb-6">
-              Ready to feel calmer?
+              Help us build Tranquil for you
             </h2>
-            <p className="text-text-secondary text-lg mb-10 max-w-xl mx-auto">
-              Start with our free programs. No credit card required.
-              Just a few minutes a day can make a real difference.
+            <p className="text-text-secondary text-lg mb-6 max-w-2xl mx-auto leading-relaxed">
+              We&apos;re building Tranquil based on what real people actually need — not assumptions.
+              Before we build more, we want to hear from you. What&apos;s not working. What you&apos;ve tried.
+              What would actually help.
             </p>
-            <Link href="/signup">
+            <p className="text-text-secondary text-lg mb-6">
+              9 quick questions. Takes 2 minutes.
+            </p>
+            <p className="text-text-primary text-lg mb-10">
+              <span className="font-medium">Shape the product</span> and get your first{' '}
+              <span className="font-medium">2 months free</span> when we launch.
+            </p>
+            <Link href="/quiz">
               <Button size="lg" className="px-12">
-                Begin Your Journey
+                Help Us Build This
               </Button>
             </Link>
           </motion.div>

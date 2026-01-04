@@ -1,4 +1,5 @@
 export * from './database';
+export * from './quiz';
 
 // Quiz types
 export interface QuizQuestion {

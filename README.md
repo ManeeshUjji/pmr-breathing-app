@@ -47,6 +47,11 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
+# Loops (Waitlist)
+LOOPS_API_KEY=your_loops_api_key
+# Optional: add the contact to a specific Loops list (mailing list ID)
+LOOPS_WAITLIST_MAILING_LIST_ID=your_waitlist_mailing_list_id
+
 # Stripe
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 STRIPE_SECRET_KEY=your_stripe_secret_key

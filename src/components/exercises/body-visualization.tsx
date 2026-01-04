@@ -255,3 +255,4 @@ export function BodyVisualization({ activeMuscleGroups, phase }: BodyVisualizati
 }
 
 
+
