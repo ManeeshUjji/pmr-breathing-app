@@ -194,12 +194,54 @@ npm run verify-migration
 
 ---
 
-## Next Steps (Post-Presales)
+## Known Issues
 
-1. Debug exercise players (PMR, Breathing, Meditation)
-2. Add favorites/bookmarks feature
-3. Improve exercise filtering UX
-4. Add exercise search functionality
+### Unresolved
+1. Exercise players (PMR, Breathing, Meditation) need debugging - functionality works but may need UX improvements
+2. Middleware deprecation warning in Next.js 16 (non-critical, can be addressed later)
+
+---
+
+## Lessons Learned & Best Practices
+
+### Database Migration Best Practices
+- Always verify migrations in Supabase dashboard before deploying to production
+- Use GIN indexes for array columns (`target_areas`) to improve query performance
+- Make columns nullable gradually when transitioning data models to avoid breaking changes
+- Populate new columns with default values based on existing data patterns
+
+### Next.js 16 & TypeScript Best Practices
+- Type definitions must match database schema exactly to prevent runtime errors
+- Use Next.js default caching strategy - it handles cache invalidation automatically on deployments
+- All new protected routes must be added to middleware protection list
+- Service worker cleanup should run silently without interrupting user experience
+
+### Progressive Web App (PWA) Development
+- Avoid aggressive cache-busting headers that force revalidation on every request
+- Manual cache clearing utilities are useful for debugging but shouldn't auto-reload
+- Service worker registration should be non-intrusive and fail gracefully
+
+### Exercise Library Architecture
+- Standalone exercise model provides better flexibility than program-based approach
+- Filtering by multiple dimensions (category, duration, target area) improves discoverability
+- Featured exercises help surface popular content to users
+- Target areas enable better content organization and searchability
+
+### Authentication & Route Protection
+- Client-side authentication checks prevent unnecessary API calls
+- Middleware-based route protection ensures consistent security across all protected pages
+- Error handling should be user-friendly and provide actionable feedback
+
+### Performance Optimization
+- Database indexes significantly improve query performance for filtered searches
+- Next.js static generation reduces server load for public pages
+- Proper caching strategy balances performance with content freshness
+
+### SEO & Content Strategy
+- Exercise library model enables better content discoverability through filtering
+- Target areas provide semantic metadata for better content organization
+- Featured exercises can be used to highlight popular or recommended content
+- Clear error messages improve user experience and reduce bounce rates
 
 ---
 
