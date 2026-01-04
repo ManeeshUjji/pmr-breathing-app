@@ -213,7 +213,7 @@ export default function OnboardingPage() {
         const { data: exercises } = await query;
         
         // Score and rank exercises based on matches
-        const scoredExercises = (exercises || []).map(exercise => {
+        const scoredExercises = (exercises || []).map((exercise: { id: string; type: string; target_areas: string[] | null; duration_seconds: number }) => {
           let score = 0;
           
           // Type match
