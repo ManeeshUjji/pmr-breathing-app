@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
+import { OptionButton } from '@/components/quiz/option-button';
 import { QuizQuestion, QuizResults } from '@/types';
 
 const questions: QuizQuestion[] = [
@@ -13,12 +14,12 @@ const questions: QuizQuestion[] = [
     question: 'What causes you the most stress?',
     type: 'multiple',
     options: [
-      { id: 'work', label: 'Work or career', value: 'work', icon: '💼' },
-      { id: 'relationships', label: 'Relationships', value: 'relationships', icon: '💬' },
-      { id: 'health', label: 'Health concerns', value: 'health', icon: '🏥' },
-      { id: 'sleep', label: 'Sleep problems', value: 'sleep', icon: '😴' },
-      { id: 'general', label: 'General anxiety', value: 'general', icon: '😰' },
-      { id: 'physical', label: 'Physical tension', value: 'physical', icon: '💪' },
+      { id: 'work', label: 'Work or career', value: 'work' },
+      { id: 'relationships', label: 'Relationships', value: 'relationships' },
+      { id: 'health', label: 'Health concerns', value: 'health' },
+      { id: 'sleep', label: 'Sleep problems', value: 'sleep' },
+      { id: 'general', label: 'General anxiety', value: 'general' },
+      { id: 'physical', label: 'Physical tension', value: 'physical' },
     ],
   },
   {
@@ -26,12 +27,12 @@ const questions: QuizQuestion[] = [
     question: 'What would you like to achieve?',
     type: 'multiple',
     options: [
-      { id: 'reduce-stress', label: 'Reduce daily stress', value: 'reduce-stress', icon: '🧘' },
-      { id: 'better-sleep', label: 'Sleep better', value: 'better-sleep', icon: '🌙' },
-      { id: 'release-tension', label: 'Release muscle tension', value: 'release-tension', icon: '✨' },
-      { id: 'calm-anxiety', label: 'Calm anxiety', value: 'calm-anxiety', icon: '🌊' },
-      { id: 'focus', label: 'Improve focus', value: 'focus', icon: '🎯' },
-      { id: 'build-habit', label: 'Build a relaxation habit', value: 'build-habit', icon: '📅' },
+      { id: 'reduce-stress', label: 'Reduce daily stress', value: 'reduce-stress' },
+      { id: 'better-sleep', label: 'Sleep better', value: 'better-sleep' },
+      { id: 'release-tension', label: 'Release muscle tension', value: 'release-tension' },
+      { id: 'calm-anxiety', label: 'Calm anxiety', value: 'calm-anxiety' },
+      { id: 'focus', label: 'Improve focus', value: 'focus' },
+      { id: 'build-habit', label: 'Build a relaxation habit', value: 'build-habit' },
     ],
   },
   {
@@ -39,9 +40,9 @@ const questions: QuizQuestion[] = [
     question: 'Have you tried relaxation techniques before?',
     type: 'single',
     options: [
-      { id: 'beginner', label: 'I\'m completely new to this', value: 'beginner', icon: '🌱' },
-      { id: 'some', label: 'I\'ve tried a few things', value: 'intermediate', icon: '🌿' },
-      { id: 'experienced', label: 'I practice regularly', value: 'advanced', icon: '🌳' },
+      { id: 'beginner', label: "I'm completely new to this", value: 'beginner' },
+      { id: 'some', label: "I've tried a few things", value: 'intermediate' },
+      { id: 'experienced', label: 'I practice regularly', value: 'advanced' },
     ],
   },
   {
@@ -49,10 +50,10 @@ const questions: QuizQuestion[] = [
     question: 'How much time can you dedicate daily?',
     type: 'single',
     options: [
-      { id: '5min', label: '5 minutes or less', value: '5', icon: '⚡' },
-      { id: '10min', label: 'About 10 minutes', value: '10', icon: '⏱️' },
-      { id: '15min', label: '15-20 minutes', value: '15', icon: '🕐' },
-      { id: '30min', label: '30+ minutes', value: '30', icon: '🧘‍♀️' },
+      { id: '5min', label: '5 minutes or less', value: '5' },
+      { id: '10min', label: 'About 10 minutes', value: '10' },
+      { id: '15min', label: '15–20 minutes', value: '15' },
+      { id: '30min', label: '30+ minutes', value: '30' },
     ],
   },
   {
@@ -60,12 +61,12 @@ const questions: QuizQuestion[] = [
     question: 'Where do you hold the most tension?',
     type: 'multiple',
     options: [
-      { id: 'jaw', label: 'Jaw & face', value: 'jaw', icon: '😬' },
-      { id: 'neck', label: 'Neck', value: 'neck', icon: '🦒' },
-      { id: 'shoulders', label: 'Shoulders', value: 'shoulders', icon: '💆' },
-      { id: 'back', label: 'Back', value: 'back', icon: '🔙' },
-      { id: 'hands', label: 'Hands & arms', value: 'hands', icon: '🤲' },
-      { id: 'all', label: 'All over', value: 'all', icon: '🧍' },
+      { id: 'jaw', label: 'Jaw & face', value: 'jaw' },
+      { id: 'neck', label: 'Neck', value: 'neck' },
+      { id: 'shoulders', label: 'Shoulders', value: 'shoulders' },
+      { id: 'back', label: 'Back', value: 'back' },
+      { id: 'hands', label: 'Hands & arms', value: 'hands' },
+      { id: 'all', label: 'All over', value: 'all' },
     ],
   },
 ];
@@ -270,7 +271,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-calm flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {/* Progress bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-bg-tertiary z-50">
         <motion.div
@@ -325,22 +326,15 @@ export default function OnboardingPage() {
                   : 'Choose one'}
               </p>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {currentQuestion.options.map((option) => (
-                  <motion.button
+                  <OptionButton
                     key={option.id}
+                    label={option.label}
+                    selected={isSelected(option.value)}
                     onClick={() => handleSelect(option.value)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`p-4 md:p-6 rounded-2xl border-2 transition-all text-left ${
-                      isSelected(option.value)
-                        ? 'border-accent bg-accent/10'
-                        : 'border-accent-light/30 bg-bg-secondary hover:border-accent/50'
-                    }`}
-                  >
-                    <span className="text-2xl mb-2 block">{option.icon}</span>
-                    <span className="text-text-primary font-medium">{option.label}</span>
-                  </motion.button>
+                    type={currentQuestion.type === 'multiple' ? 'multi' : 'single'}
+                  />
                 ))}
               </div>
             </motion.div>
@@ -363,11 +357,6 @@ export default function OnboardingPage() {
         </div>
       </footer>
 
-      {/* Decorative elements */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 -left-32 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-lavender/5 rounded-full blur-3xl" />
-      </div>
     </div>
   );
 }

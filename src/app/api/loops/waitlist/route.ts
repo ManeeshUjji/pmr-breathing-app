@@ -9,7 +9,8 @@ type PresellQuestionId =
   | 'q6_did_it_help'
   | 'q7_why_not_work'
   | 'q8_fair_price'
-  | 'q9_pay_pref';
+  | 'q9_pay_pref'
+  | 'q10_feedback';
 
 type PresellAnswerValue = string | string[];
 
@@ -17,6 +18,7 @@ type WaitlistPayload = {
   email?: string;
   answers?: Record<PresellQuestionId, PresellAnswerValue>;
   otherText?: Partial<Record<PresellQuestionId, string>>;
+  feedback?: string;
   source?: string;
   website?: string; // honeypot
 };
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
 
   if (!loopsApiKey) {
     return NextResponse.json(
-      { error: 'Waitlist not configured' },
+      { error: 'Waitlist is temporarily unavailable. Please try again later.' },
       { status: 500 }
     );
   }
@@ -74,6 +76,7 @@ export async function POST(request: Request) {
   const answers =
     body.answers || ({} as Record<PresellQuestionId, PresellAnswerValue>);
   const otherText = body.otherText || {};
+  const feedback = (body.feedback || '').trim();
 
   // Defensive limits for third-party API constraints.
   // Keep values comfortably under common 255-char property limits.
@@ -117,6 +120,7 @@ export async function POST(request: Request) {
       toStringValue(answers.q9_pay_pref),
       MAX_PROP_LEN
     ),
+    ps_q10_feedback: clampString(feedback, MAX_PROP_LEN),
     ps_reward: '2_months_free',
     ps_source: clampString(body.source || 'presell_quiz', 60),
   };
@@ -142,15 +146,71 @@ export async function POST(request: Request) {
     body: JSON.stringify(payload),
   });
 
+  // Loops may return 200 with a JSON body indicating failure (e.g., duplicate email).
+  // So we always read the body and interpret it defensively.
+  let loopsBodyText = '';
+  try {
+    loopsBodyText = await res.text();
+  } catch {
+    // ignore
+  }
+
+  let loopsMessage = '';
+  let loopsSuccess: boolean | undefined = undefined;
+  try {
+    const trimmed = loopsBodyText.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const parsed = JSON.parse(trimmed) as { success?: boolean; message?: string };
+      loopsSuccess = parsed?.success;
+      loopsMessage = parsed?.message || '';
+    }
+  } catch {
+    // ignore
+  }
+
+  const msgLower = (loopsMessage || loopsBodyText || '').toLowerCase();
+  const isDuplicate =
+    res.status === 409 ||
+    (msgLower.includes('already') && msgLower.includes('audience')) ||
+    msgLower.includes('already on the waitlist');
+
+  if (isDuplicate) {
+    return NextResponse.json(
+      { ok: true, alreadyOnWaitlist: true },
+      { status: 200 }
+    );
+  }
+
+  // If Loops says success:false (even with 200), treat it as an error for the client.
+  if (loopsSuccess === false) {
+    return NextResponse.json(
+      {
+        error:
+          loopsMessage ||
+          'Something went wrong. Please try again.',
+      },
+      { status: 502 }
+    );
+  }
+
   if (!res.ok) {
     let message = 'Loops request failed';
     try {
-      const text = await res.text();
-      if (text) message = text;
+      if (loopsBodyText) message = loopsBodyText;
+      if (loopsMessage) message = loopsMessage;
     } catch {
       // ignore
     }
-    return NextResponse.json({ error: message }, { status: 502 });
+
+    return NextResponse.json(
+      {
+        error:
+          message && message !== 'Loops request failed'
+            ? message
+            : 'Something went wrong. Please try again.',
+      },
+      { status: 502 }
+    );
   }
 
   return NextResponse.json({ ok: true }, { status: 200 });

@@ -41,23 +41,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-calm flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="w-full max-w-md"
-      >
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-semibold text-text-primary font-[family-name:var(--font-dm-serif)]">
-              Tranquil
-            </h1>
-          </Link>
-          <p className="text-text-secondary mt-2">Welcome back to your calm</p>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="w-full max-w-md"
+    >
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-light text-text-primary font-[family-name:var(--font-dm-serif)]">
+          Welcome back
+        </h1>
+        <p className="text-text-secondary mt-2">Sign in to continue your calm routine.</p>
+      </div>
 
-        <Card variant="elevated" padding="lg">
+      <Card variant="elevated" padding="lg">
           <form onSubmit={handleLogin} className="space-y-6">
             <Input
               label="Email"
@@ -105,19 +102,12 @@ export default function LoginPage() {
               </Link>
             </p>
           </div>
-        </Card>
+      </Card>
 
-        <p className="text-center text-text-muted text-sm mt-6">
-          By signing in, you agree to our Terms of Service and Privacy Policy.
-        </p>
-      </motion.div>
-
-      {/* Decorative elements */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 -left-32 w-64 h-64 bg-accent/10 rounded-full blur-3xl animate-pulse-gentle" />
-        <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-lavender/10 rounded-full blur-3xl animate-pulse-gentle" />
-      </div>
-    </div>
+      <p className="text-center text-text-muted text-sm mt-6">
+        By signing in, you agree to our Terms of Service and Privacy Policy.
+      </p>
+    </motion.div>
   );
 }
 

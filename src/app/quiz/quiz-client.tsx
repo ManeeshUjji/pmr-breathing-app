@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button, Input, Card } from '@/components/ui';
-import { ProgressDashes } from '@/components/quiz/progress-dashes';
+import { ProgressBar } from '@/components/quiz';
+import { OptionButton } from '@/components/quiz/option-button';
+import { cn } from '@/lib/utils/cn';
 
 type PresellQuestionId =
   | 'q1_brings_you_here'
@@ -15,15 +17,16 @@ type PresellQuestionId =
   | 'q6_did_it_help'
   | 'q7_why_not_work'
   | 'q8_fair_price'
-  | 'q9_pay_pref';
+  | 'q9_pay_pref'
+  | 'q10_feedback';
 
 type PresellAnswerValue = string | string[];
 
 type Question = {
   id: PresellQuestionId;
   question: string;
-  type: 'single' | 'multiple';
-  options: Array<{ label: string; value: string }>;
+  type: 'single' | 'multiple' | 'textarea';
+  options?: Array<{ label: string; value: string }>;
   hasOther?: boolean;
   otherLabel?: string;
 };
@@ -46,7 +49,7 @@ const questions: Question[] = [
   },
   {
     id: 'q2_time_daily',
-    question: 'How much time could you spend daily?',
+    question: 'How much time can you spend daily on these exercises?',
     type: 'single',
     options: [
       { label: '2-5 minutes', value: '2_5' },
@@ -144,6 +147,12 @@ const questions: Question[] = [
       { label: 'Free trial, then subscription', value: 'trial_then_sub' },
     ],
   },
+  {
+    id: 'q10_feedback',
+    question:
+      "Is there anything you'd like us to implement or any feedback you'd like to share?",
+    type: 'textarea',
+  },
 ];
 
 const transition = { duration: 0.45, ease: 'easeInOut' } as const;
@@ -155,47 +164,124 @@ function includesOther(value: PresellAnswerValue | undefined) {
 
 export function QuizClient() {
   const router = useRouter();
-  const [step, setStep] = useState(0); // 0..questions.length (email step at end)
-  const [answers, setAnswers] = useState<Record<PresellQuestionId, PresellAnswerValue>>(
-    {} as Record<PresellQuestionId, PresellAnswerValue>
-  );
+  const [step, setStep] = useState(0); // 0..visibleQuestions.length (email step at end)
+  const [answers, setAnswers] = useState<
+    Partial<Record<PresellQuestionId, PresellAnswerValue>>
+  >({});
   const [others, setOthers] = useState<Partial<Record<PresellQuestionId, string>>>(
     {}
   );
+  const [feedback, setFeedback] = useState('');
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string | undefined>(undefined);
   const [submitError, setSubmitError] = useState<string | undefined>(undefined);
+  const [submitNotice, setSubmitNotice] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [honeypot, setHoneypot] = useState('');
+  const lastQuestionIdRef = useRef<PresellQuestionId | null>(null);
 
-  const isEmailStep = step === questions.length;
-  const currentQuestion = !isEmailStep ? questions[step] : null;
+  const visibleQuestions = useMemo(() => {
+    const tried = answers.q5_tried;
+    const triedArr = Array.isArray(tried) ? tried : [];
+    const triedNothingYet =
+      triedArr.length === 1 && triedArr.includes('nothing_yet');
+
+    const showQ6 = triedArr.length > 0 && !triedNothingYet;
+    const didItHelp = (answers.q6_did_it_help || '') as string;
+    const showQ7 =
+      showQ6 && (didItHelp === 'somewhat' || didItHelp === 'no');
+
+    return questions.filter((q) => {
+      if (q.id === 'q6_did_it_help') return showQ6;
+      if (q.id === 'q7_why_not_work') return showQ7;
+      return true;
+    });
+  }, [answers]);
+
+  const isEmailStep = step === visibleQuestions.length;
+  const currentQuestion = !isEmailStep ? visibleQuestions[step] : null;
+
+  useEffect(() => {
+    if (!isEmailStep && currentQuestion) {
+      lastQuestionIdRef.current = currentQuestion.id;
+    } else {
+      lastQuestionIdRef.current = null;
+    }
+  }, [currentQuestion?.id, isEmailStep, currentQuestion]);
+
+  useEffect(() => {
+    // Keep the user on the same question as conditional questions appear/disappear.
+    setStep((s) => {
+      const lastId = lastQuestionIdRef.current;
+      if (!lastId) return Math.min(s, visibleQuestions.length);
+      const idx = visibleQuestions.findIndex((q) => q.id === lastId);
+      if (idx === -1) return Math.min(s, visibleQuestions.length);
+      return idx;
+    });
+  }, [visibleQuestions, visibleQuestions.length]);
+
+  const totalSteps = visibleQuestions.length + 1; // +1 for email
+  const progressValue = useMemo(() => {
+    const current = Math.min(step, visibleQuestions.length) + 1;
+    return totalSteps <= 0 ? 0 : current / totalSteps;
+  }, [step, totalSteps, visibleQuestions.length]);
 
   const canProceed = useMemo(() => {
     if (isEmailStep) return true;
     if (!currentQuestion) return false;
+    if (currentQuestion.type === 'textarea') return true;
     const value = answers[currentQuestion.id];
     if (!value) return false;
     if (Array.isArray(value)) return value.length > 0;
     return value.length > 0;
   }, [answers, currentQuestion, isEmailStep]);
 
-  const completedCount = Math.min(step, questions.length);
-  const currentDashIndex = Math.min(step, questions.length - 1);
-
   const handleSelect = (qid: PresellQuestionId, option: string) => {
     setSubmitError(undefined);
+    setSubmitNotice(undefined);
 
     const q = questions.find((x) => x.id === qid);
     if (!q) return;
 
     if (q.type === 'single') {
-      setAnswers((prev) => ({ ...prev, [qid]: option }));
+      setAnswers((prev) => {
+        // If Q6 changes away from a "didn't help" answer, clear Q7.
+        if (
+          qid === 'q6_did_it_help' &&
+          option !== 'somewhat' &&
+          option !== 'no'
+        ) {
+          // Remove dependent answer if Q7 becomes hidden
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { q7_why_not_work, ...rest } = prev;
+          return { ...rest, [qid]: option };
+        }
+        return { ...prev, [qid]: option };
+      });
       return;
     }
 
     setAnswers((prev) => {
       const prevArr = Array.isArray(prev[qid]) ? (prev[qid] as string[]) : [];
+      const isTriedQuestion = qid === 'q5_tried';
+
+      // Special-case "Nothing yet" to avoid conflicting answers.
+      if (isTriedQuestion) {
+        if (option === 'nothing_yet') {
+          // Selecting "Nothing yet" clears other selections and dependent answers.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { q6_did_it_help, q7_why_not_work, ...rest } = prev;
+          return { ...rest, [qid]: ['nothing_yet'] };
+        }
+
+        // Selecting anything else removes "Nothing yet".
+        const cleaned = prevArr.filter((v) => v !== 'nothing_yet');
+        if (cleaned.includes(option)) {
+          return { ...prev, [qid]: cleaned.filter((v) => v !== option) };
+        }
+        return { ...prev, [qid]: [...cleaned, option] };
+      }
+
       if (prevArr.includes(option)) {
         return { ...prev, [qid]: prevArr.filter((v) => v !== option) };
       }
@@ -212,7 +298,14 @@ export function QuizClient() {
   const handleNext = () => {
     if (isEmailStep) return;
     if (!canProceed) return;
-    setStep((s) => Math.min(s + 1, questions.length));
+    setStep((s) => Math.min(s + 1, visibleQuestions.length));
+  };
+
+  const handleBack = () => {
+    setSubmitError(undefined);
+    setSubmitNotice(undefined);
+    setEmailError(undefined);
+    setStep((s) => Math.max(0, s - 1));
   };
 
   const validateEmail = (value: string) => {
@@ -224,6 +317,7 @@ export function QuizClient() {
 
   const handleSubmit = async () => {
     setSubmitError(undefined);
+    setSubmitNotice(undefined);
     const err = validateEmail(email);
     setEmailError(err);
     if (err) return;
@@ -236,6 +330,7 @@ export function QuizClient() {
           questions.map((q) => [q.id, answers[q.id]])
         ) as Record<PresellQuestionId, PresellAnswerValue>,
         otherText: others,
+        feedback: feedback.trim(),
         source: 'presell_quiz',
         website: honeypot, // honeypot spam field
       };
@@ -246,12 +341,27 @@ export function QuizClient() {
         body: JSON.stringify(payload),
       });
 
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        alreadyOnWaitlist?: boolean;
+        error?: string;
+      };
 
       if (!res.ok) {
-        setSubmitError(
-          data?.error || 'Something went wrong. Please try again.'
-        );
+        const raw =
+          data?.error || 'Something went wrong. Please try again.';
+        const friendly =
+          raw.toLowerCase().includes('waitlist not configured') ||
+          raw.toLowerCase().includes('not configured')
+            ? 'Waitlist is temporarily unavailable. Please try again later.'
+            : raw;
+        setSubmitError(friendly);
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (data?.alreadyOnWaitlist) {
+        setSubmitNotice("You're already on the waitlist — thank you!");
         setIsSubmitting(false);
         return;
       }
@@ -264,15 +374,10 @@ export function QuizClient() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-calm flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <header className="pt-10 px-6">
         <div className="max-w-2xl mx-auto">
-          <ProgressDashes
-            total={questions.length}
-            currentIndex={currentDashIndex}
-            completedCount={completedCount}
-            className="mb-8"
-          />
+          <ProgressBar value={progressValue} className="mb-10" />
         </div>
       </header>
 
@@ -293,37 +398,72 @@ export function QuizClient() {
                 <p className="text-text-muted text-center mb-10">
                   {currentQuestion.type === 'multiple'
                     ? 'Select all that apply'
-                    : 'Choose one'}
+                    : currentQuestion.type === 'single'
+                      ? 'Choose one'
+                      : 'Optional — share anything that would make Tranquil better.'}
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentQuestion.options.map((option) => (
-                    <motion.button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handleSelect(currentQuestion.id, option.value)}
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                      transition={{ duration: 0.2 }}
-                      className={[
-                        'w-full text-left px-5 py-4 rounded-2xl border-2 transition-all',
-                        'min-h-[56px]',
-                        isSelected(currentQuestion.id, option.value)
-                          ? 'border-accent bg-accent/10'
-                          : 'border-accent-light/30 bg-bg-secondary hover:border-accent/50',
-                      ].join(' ')}
-                      aria-pressed={isSelected(currentQuestion.id, option.value)}
-                    >
-                      <span className="text-text-primary font-medium">{option.label}</span>
-                    </motion.button>
-                  ))}
-                </div>
+                {currentQuestion.type !== 'textarea' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-fr">
+                    {(currentQuestion.options || []).map((option, idx) => {
+                      const isOddLastTile =
+                        (currentQuestion.options || []).length % 2 === 1 &&
+                        idx === (currentQuestion.options || []).length - 1;
+
+                      return (
+                        <div
+                          key={option.value}
+                          className={cn('h-full', isOddLastTile && 'sm:col-span-2')}
+                        >
+                          <OptionButton
+                            label={option.label}
+                            selected={isSelected(currentQuestion.id, option.value)}
+                            onClick={() =>
+                              handleSelect(currentQuestion.id, option.value)
+                            }
+                            type={
+                              currentQuestion.type === 'multiple' ? 'multi' : 'single'
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="max-w-xl mx-auto text-left">
+                    <label className="block text-sm font-medium text-text-secondary mb-2 pl-4">
+                      Your message (optional)
+                    </label>
+                    <textarea
+                      value={feedback}
+                      onChange={(e) => {
+                        setFeedback(e.target.value);
+                      }}
+                      placeholder="Anything you’d love us to implement, improve, or add…"
+                      maxLength={800}
+                      rows={5}
+                      className={cn(
+                        'w-full px-4 py-3 rounded-2xl',
+                        'bg-bg-primary/50 border border-accent-light/40 shadow-[var(--shadow-inset)]',
+                        'text-text-primary placeholder:text-text-muted',
+                        'transition-all duration-300',
+                        'focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent focus:ring-offset-2 focus:ring-offset-bg-primary',
+                        'resize-none'
+                      )}
+                    />
+                    <div className="mt-2 flex items-center justify-between text-xs text-text-muted px-1">
+                      <span>Optional — you can skip this.</span>
+                      <span>{feedback.length}/800</span>
+                    </div>
+                  </div>
+                )}
 
                 {currentQuestion.hasOther &&
                   includesOther(answers[currentQuestion.id]) && (
                     <div className="mt-6">
                       <Input
                         label={currentQuestion.otherLabel || 'Other (optional)'}
+                        labelClassName="pl-4"
                         value={others[currentQuestion.id] || ''}
                         onChange={(e) =>
                           setOthers((prev) => ({
@@ -336,12 +476,24 @@ export function QuizClient() {
                     </div>
                   )}
 
-                <div className="mt-10">
+                <div className="mt-10 flex items-center justify-between gap-4">
+                  {step > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleBack}
+                      className="text-sm underline text-text-muted hover:text-text-primary transition-colors"
+                    >
+                      Back
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+
                   <Button
-                    fullWidth
                     size="lg"
                     onClick={handleNext}
                     disabled={!canProceed}
+                    className="flex-1"
                   >
                     Continue
                   </Button>
@@ -358,7 +510,7 @@ export function QuizClient() {
                 exit={{ opacity: 0, x: -18 }}
                 transition={transition}
               >
-                <Card className="bg-bg-primary/70 border border-accent-light/30">
+                <Card variant="glass" padding="lg">
                   <h1 className="text-2xl md:text-3xl font-light text-text-primary text-center mb-4 font-[family-name:var(--font-dm-serif)]">
                     Last step — you&apos;re in.
                   </h1>
@@ -376,9 +528,10 @@ export function QuizClient() {
                     aria-hidden="true"
                   />
 
-                  <div className="space-y-5">
+                  <div className="max-w-md mx-auto space-y-5 text-left">
                     <Input
                       label="Email"
+                      labelClassName="pl-4"
                       type="email"
                       inputMode="email"
                       autoComplete="email"
@@ -388,22 +541,44 @@ export function QuizClient() {
                       onChange={(e) => {
                         setEmail(e.target.value);
                         if (emailError) setEmailError(undefined);
+                        if (submitError) setSubmitError(undefined);
+                        if (submitNotice) setSubmitNotice(undefined);
                       }}
                     />
+
+                    {submitNotice && (
+                      <p className="text-sm text-text-secondary text-center">
+                        {submitNotice}
+                      </p>
+                    )}
 
                     {submitError && (
                       <p className="text-sm text-error text-center">{submitError}</p>
                     )}
 
-                    <Button
-                      type="submit"
-                      fullWidth
-                      size="lg"
-                      onClick={handleSubmit}
-                      isLoading={isSubmitting}
-                    >
-                      Join the Waitlist
-                    </Button>
+                    <div className="flex items-center justify-between gap-4">
+                      {step > 0 ? (
+                        <button
+                          type="button"
+                          onClick={handleBack}
+                          className="text-sm underline text-text-muted hover:text-text-primary transition-colors"
+                        >
+                          Back
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+
+                      <Button
+                        type="submit"
+                        size="lg"
+                        onClick={handleSubmit}
+                        isLoading={isSubmitting}
+                        className="flex-1"
+                      >
+                        Join the Waitlist
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               </motion.div>
@@ -411,12 +586,6 @@ export function QuizClient() {
           </AnimatePresence>
         </div>
       </main>
-
-      <footer className="pb-8 px-6">
-        <div className="max-w-2xl mx-auto text-center text-sm text-text-muted">
-          Step {Math.min(step + 1, questions.length + 1)} of {questions.length + 1}
-        </div>
-      </footer>
     </div>
   );
 }

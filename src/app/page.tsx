@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui';
+import { PublicShell } from '@/components/layout/public-shell';
 
 const features = [
   {
@@ -61,27 +62,20 @@ const benefits = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-bg-primary overflow-hidden">
-      {/* Navigation */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-bg-primary/80 backdrop-blur-md border-b border-accent-light/20">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="text-xl font-semibold text-text-primary font-[family-name:var(--font-dm-serif)]">
-            Tranquil
-          </Link>
-          <nav className="flex items-center">
-            <Link href="/quiz">
-              <Button size="sm">Help Us Build This</Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
-
+    <PublicShell
+      headerRight={
+        <Link href="/quiz">
+          <Button size="sm">Help Us Build This</Button>
+        </Link>
+      }
+      mainClassName="pb-0"
+    >
       {/* Hero Section */}
-      <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 px-6">
+      <section className="relative pt-10 pb-20 md:pt-16 md:pb-28 px-6">
         {/* Background elements */}
         <div className="absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute top-20 left-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-1/4 w-80 h-80 bg-lavender/5 rounded-full blur-3xl" />
+          <div className="absolute top-20 left-1/4 w-96 h-96 bg-accent/4 rounded-full blur-3xl" />
+          <div className="absolute bottom-20 right-1/4 w-80 h-80 bg-lavender/4 rounded-full blur-3xl" />
           <motion.div
             className="absolute top-1/3 right-1/3 w-4 h-4 bg-accent/30 rounded-full"
             animate={{ y: [0, -20, 0] }}
@@ -132,6 +126,26 @@ export default function LandingPage() {
                 Learn More
               </Button>
             </Link>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7, duration: 0.6 }}
+            className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-text-muted"
+          >
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent/40" />
+              Private by design
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-lavender/40" />
+              Secure payments via Stripe
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-light" />
+              Cancel anytime
+            </span>
           </motion.div>
 
           {/* Breathing circle demo */}
@@ -335,29 +349,6 @@ export default function LandingPage() {
           </motion.div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="py-12 px-6 border-t border-accent-light/20">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="text-xl font-semibold text-text-primary font-[family-name:var(--font-dm-serif)]">
-            Tranquil
-          </div>
-          <div className="flex items-center gap-6 text-sm text-text-muted">
-            <Link href="/privacy" className="hover:text-text-secondary transition-colors">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-text-secondary transition-colors">
-              Terms
-            </Link>
-            <Link href="/contact" className="hover:text-text-secondary transition-colors">
-              Contact
-            </Link>
-          </div>
-          <p className="text-sm text-text-muted">
-            © {new Date().getFullYear()} Tranquil. Find your calm.
-          </p>
-        </div>
-      </footer>
-    </div>
+    </PublicShell>
   );
 }

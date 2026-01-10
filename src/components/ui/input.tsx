@@ -5,12 +5,13 @@ import { cn } from '@/lib/utils/cn';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  labelClassName?: string;
   error?: string;
   hint?: string;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, hint, id, ...props }, ref) => {
+  ({ className, label, labelClassName, error, hint, id, ...props }, ref) => {
     const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
@@ -18,7 +19,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-sm font-medium text-text-secondary mb-2"
+            className={cn(
+              'block text-sm font-medium text-text-secondary mb-2',
+              labelClassName
+            )}
           >
             {label}
           </label>
@@ -27,11 +31,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           className={cn(
-            'w-full px-4 py-3 rounded-xl',
-            'bg-bg-secondary border border-accent-light',
+            'w-full h-12 px-4 rounded-xl',
+            'bg-bg-primary/50 border border-accent-light/40 shadow-[var(--shadow-inset)]',
             'text-text-primary placeholder:text-text-muted',
             'transition-all duration-300',
-            'focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent',
+            'focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent focus:ring-offset-2 focus:ring-offset-bg-primary',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             error && 'border-error focus:ring-error',
             className

@@ -13,8 +13,10 @@ interface CardProps {
 }
 
 const variantsStyles = {
-  default: 'bg-bg-secondary border border-accent-light',
-  elevated: 'bg-bg-secondary shadow-lg border border-accent-light/50',
+  default:
+    'bg-bg-primary/55 border border-accent-light/25 shadow-[var(--shadow-card)]',
+  elevated:
+    'bg-bg-primary/65 border border-accent-light/30 shadow-[var(--shadow-elevated)]',
   glass: 'glass',
 };
 
@@ -45,7 +47,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
           'rounded-2xl transition-all duration-300',
           variantsStyles[variant],
           paddings[padding],
-          hoverable && 'cursor-pointer hover:shadow-lg',
+          hoverable && 'cursor-pointer hover:shadow-[var(--shadow-elevated)]',
           className
         )}
       >

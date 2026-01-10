@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button, Card } from '@/components/ui';
+import { PublicShell } from '@/components/layout/public-shell';
 
 const features = {
   free: [
@@ -28,10 +29,12 @@ const features = {
 export default function PricingPage() {
   const [isAnnual, setIsAnnual] = useState(true);
   const [isLoading, setIsLoading] = useState<'monthly' | 'yearly' | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleCheckout = async (planType: 'monthly' | 'yearly') => {
     setIsLoading(planType);
+    setError(null);
 
     try {
       const response = await fetch('/api/stripe/checkout', {
@@ -49,38 +52,28 @@ export default function PricingPage() {
       } else if (data.error === 'Unauthorized') {
         router.push('/login?redirect=/pricing');
       } else {
-        console.error('Checkout error:', data.error);
+        setError(data?.error || 'Unable to start checkout. Please try again.');
       }
     } catch (error) {
       console.error('Checkout error:', error);
+      setError('Unable to start checkout. Please try again.');
     } finally {
       setIsLoading(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-calm">
-      {/* Header */}
-      <header className="border-b border-accent-light/20 bg-bg-primary/80 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link
-            href="/"
-            className="text-xl font-semibold text-text-primary font-[family-name:var(--font-dm-serif)]"
-          >
-            Tranquil
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link
-              href="/login"
-              className="text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
-              Sign in
-            </Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 py-16">
+    <PublicShell
+      headerRight={
+        <Link
+          href="/login"
+          className="text-sm text-text-secondary hover:text-text-primary transition-colors"
+        >
+          Sign in
+        </Link>
+      }
+    >
+      <div className="max-w-5xl mx-auto px-6">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -258,6 +251,10 @@ export default function PricingPage() {
                   ? 'Processing...'
                   : `Start Premium ${isAnnual ? 'Annual' : 'Monthly'}`}
               </Button>
+
+              {error && (
+                <p className="mt-4 text-sm text-error text-center">{error}</p>
+              )}
             </Card>
           </motion.div>
         </div>
@@ -276,8 +273,8 @@ export default function PricingPage() {
             Secure payment powered by Stripe. Your data is always protected.
           </p>
         </motion.div>
-      </main>
-    </div>
+      </div>
+    </PublicShell>
   );
 }
 

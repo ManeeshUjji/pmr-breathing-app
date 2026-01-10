@@ -23,11 +23,13 @@ export function OptionButton({
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       className={cn(
-        'w-full text-left px-5 py-4 rounded-xl border-2 transition-all duration-300',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+        'w-full text-left px-5 py-4 rounded-2xl border transition-all duration-300',
+        // Enforce uniform tile height for OCD-level alignment (prevents wrapped labels from changing row height)
+        'h-[76px] overflow-hidden',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary',
         selected
-          ? 'border-accent bg-accent/10 text-text-primary'
-          : 'border-accent-light bg-bg-secondary text-text-secondary hover:border-accent/50 hover:bg-bg-tertiary'
+          ? 'border-accent bg-accent/10 text-text-primary shadow-[var(--shadow-card)]'
+          : 'border-accent-light/40 bg-bg-secondary/60 text-text-secondary hover:border-accent/50 hover:bg-bg-tertiary/70'
       )}
     >
       <div className="flex items-center gap-3">
@@ -59,7 +61,9 @@ export function OptionButton({
             </motion.svg>
           )}
         </div>
-        <span className="text-base md:text-lg">{label}</span>
+        <span className="min-w-0 text-base md:text-lg leading-snug">
+          {label}
+        </span>
       </div>
     </motion.button>
   );

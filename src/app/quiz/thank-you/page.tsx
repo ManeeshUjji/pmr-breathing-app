@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Button, Card } from '@/components/ui';
+import { ThankYouCheck } from '@/components/quiz';
 
 export const metadata: Metadata = {
   title: "You're In — Tranquil Waitlist",
@@ -8,19 +9,23 @@ export const metadata: Metadata = {
     "Thanks for joining the Tranquil waitlist. We'll email you when early access opens.",
 };
 
-export default function QuizThankYouPage() {
+export default function QuizThankYouPage({
+}: {
+  searchParams?: { status?: string };
+}) {
   return (
-    <div className="min-h-screen bg-gradient-calm flex items-center justify-center px-6 py-16">
+    <div className="min-h-screen flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-xl">
-        <Card className="bg-bg-primary/70 border border-accent-light/30 text-center">
+        <Card className="text-center" variant="glass" padding="lg">
+          <ThankYouCheck />
           <h1 className="text-3xl md:text-4xl font-light text-text-primary font-[family-name:var(--font-dm-serif)] mb-4">
             You&apos;re in.
           </h1>
           <p className="text-text-secondary text-lg mb-3">
-            We&apos;ll email you when early access opens.
+            Thank you for joining! We&apos;re excited to have you on this journey.
           </p>
           <p className="text-text-muted mb-10">
-            Your answers are already shaping what gets built.
+            We&apos;ll email you when early access opens. Your answers are already shaping what gets built.
           </p>
 
           <Link href="/">
