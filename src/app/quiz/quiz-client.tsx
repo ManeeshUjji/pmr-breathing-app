@@ -173,7 +173,11 @@ export function QuizClient() {
   );
   const [feedback, setFeedback] = useState('');
   const [email, setEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
   const [emailError, setEmailError] = useState<string | undefined>(undefined);
+  const [confirmEmailError, setConfirmEmailError] = useState<string | undefined>(
+    undefined
+  );
   const [submitError, setSubmitError] = useState<string | undefined>(undefined);
   const [submitNotice, setSubmitNotice] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -315,12 +319,22 @@ export function QuizClient() {
     return undefined;
   };
 
+  const validateConfirmEmail = (emailValue: string, confirmValue: string) => {
+    if (!confirmValue.trim()) return 'Please retype your email.';
+    if (emailValue.trim() !== confirmValue.trim()) return 'Emails do not match.';
+    return undefined;
+  };
+
   const handleSubmit = async () => {
     setSubmitError(undefined);
     setSubmitNotice(undefined);
     const err = validateEmail(email);
     setEmailError(err);
     if (err) return;
+
+    const confirmErr = validateConfirmEmail(email, confirmEmail);
+    setConfirmEmailError(confirmErr);
+    if (confirmErr) return;
 
     setIsSubmitting(true);
     try {
@@ -541,6 +555,26 @@ export function QuizClient() {
                       onChange={(e) => {
                         setEmail(e.target.value);
                         if (emailError) setEmailError(undefined);
+                        if (confirmEmailError) setConfirmEmailError(undefined);
+                        if (submitError) setSubmitError(undefined);
+                        if (submitNotice) setSubmitNotice(undefined);
+                      }}
+                    />
+
+                    <Input
+                      label="Retype email"
+                      labelClassName="pl-4"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="off"
+                      placeholder="retype your email"
+                      value={confirmEmail}
+                      error={confirmEmailError}
+                      onPaste={(e) => e.preventDefault()}
+                      onDrop={(e) => e.preventDefault()}
+                      onChange={(e) => {
+                        setConfirmEmail(e.target.value);
+                        if (confirmEmailError) setConfirmEmailError(undefined);
                         if (submitError) setSubmitError(undefined);
                         if (submitNotice) setSubmitNotice(undefined);
                       }}
